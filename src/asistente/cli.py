@@ -9,9 +9,19 @@ def main() -> None:
     hablar_p.add_argument("texto")
     transcribir_p = sub.add_parser("transcribir", help="transcribir un archivo de audio")
     transcribir_p.add_argument("archivo", type=Path)
+    sub.add_parser("diagnosticar", help="medir micrófono, activación y fin de frase")
+    sub.add_parser("voces", help="escuchar las voces masculinas en español")
     args = parser.parse_args()
 
-    if args.comando == "hablar":
+    if args.comando == "diagnosticar":
+        from .diagnostico import diagnosticar
+
+        diagnosticar()
+    elif args.comando == "voces":
+        from .diagnostico import probar_voces
+
+        probar_voces()
+    elif args.comando == "hablar":
         from .tts import hablar
 
         hablar(args.texto)

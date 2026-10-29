@@ -11,9 +11,11 @@ class PalabraActivacion:
             inference_framework="onnx",
         )
 
+    def puntaje(self, frame: np.ndarray) -> float:
+        return max(self._modelo.predict(frame).values())
+
     def detectada(self, frame: np.ndarray) -> bool:
-        puntajes = self._modelo.predict(frame)
-        return max(puntajes.values()) >= config.UMBRAL_ACTIVACION
+        return self.puntaje(frame) >= config.UMBRAL_ACTIVACION
 
     def reiniciar(self) -> None:
         self._modelo.reset()
