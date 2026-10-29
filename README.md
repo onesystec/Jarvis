@@ -56,7 +56,7 @@ Di «Hey Járvis»; tras un tintineo ya escucha. Después puedes seguir hablando
 
 ## Esfera
 
-Al activarse, una esfera translúcida y flotante aparece arriba a la derecha y cambia según el estado (escuchando, pensando, hablando); al terminar la orden se desvanece. Es una ventana de AppKit sin bordes ni fondo, que no recibe clics ni roba el foco, y corre en un proceso aparte que se cierra con el asistente. Se desactiva con `ESFERA_ACTIVA = False` en `src/asistente/config.py`. Para dibujarla se usa `pyobjc-framework-Cocoa`.
+Una esfera translúcida y flotante vive arriba a la derecha desde que arranca el asistente: tenue y tranquila mientras espera, y más viva e intensa al activarse (escuchando, pensando, hablando). Así siempre se ve que Jarvis está en marcha, sin esperar a que se detecte «Hey Járvis». Es una ventana de AppKit sin bordes ni fondo, que no recibe clics ni roba el foco, y corre en un proceso aparte que se cierra con el asistente. En espera gasta ~5 % de un núcleo. `ESFERA_SIEMPRE_VISIBLE = False` en `src/asistente/config.py` hace que solo aparezca durante la conversación, y `ESFERA_ACTIVA = False` la desactiva. Para dibujarla se usa `pyobjc-framework-Cocoa`.
 
 ## Herramientas y permisos
 

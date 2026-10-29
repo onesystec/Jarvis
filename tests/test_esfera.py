@@ -132,3 +132,12 @@ def test_la_vista_dibuja_con_fondo_transparente():
     assert esquina.alphaComponent() == 0.0  # fuera de la esfera no hay nada
     hay_trazo = any(representacion.colorAtX_y_(x, 100).alphaComponent() > 0.3 for x in range(400))
     assert hay_trazo
+
+
+def test_en_espera_la_esfera_es_tenue_pero_visible_y_en_reposo_se_oculta():
+    assert ESTADOS["reposo"].presencia == 0.0
+    assert 0.0 < ESTADOS["espera"].presencia < ESTADOS["escuchando"].presencia == 1.0
+    assert ESTADOS["espera"].velocidad < ESTADOS["escuchando"].velocidad  # más calmada
+    assert mezclar(ESTADOS["espera"], ESTADOS["escuchando"], 0.5).presencia == pytest.approx(
+        (ESTADOS["espera"].presencia + 1.0) / 2
+    )

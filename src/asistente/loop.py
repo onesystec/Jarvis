@@ -11,6 +11,7 @@ from .stt import transcribir
 from .tts import hablar, hablar_frases
 from .wake import PalabraActivacion
 
+INACTIVA = "espera" if config.ESFERA_SIEMPRE_VISIBLE else "reposo"  # cómo se ve la esfera entre conversaciones
 _ERRORES_DE_TURNO = (subprocess.SubprocessError, OSError, RuntimeError)
 
 
@@ -64,6 +65,7 @@ def _conversar(mic, esfera: Esfera, cerebro: Cerebro) -> bool:
 
 def ejecutar() -> None:
     with Esfera(config.ESFERA_ACTIVA) as esfera:
+        esfera.estado(INACTIVA)  # visible desde el arranque, mientras cargan los modelos
         _bucle(esfera)
 
 
@@ -100,7 +102,7 @@ def _bucle(esfera: Esfera) -> None:
 
             print()
             apagar = _conversar(mic, esfera, cerebro)
-            esfera.estado("reposo")
+            esfera.estado(INACTIVA)
             if apagar:
                 return
             mic.vaciar()

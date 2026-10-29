@@ -10,10 +10,12 @@ class Parametros:
     velocidad: float  # ritmo de la animación
     brillo: float  # intensidad del resplandor
     pulso: float  # latido del radio
+    presencia: float = 1.0  # opacidad a la que se queda la esfera en este estado (0 = oculta)
 
 
 ESTADOS: dict[str, Parametros] = {
-    "reposo": Parametros(0.6, 0.5, 0.7, 0.0),  # oculta; estos valores solo rigen el desvanecido
+    "reposo": Parametros(0.6, 0.5, 0.7, 0.0, 0.0),  # oculta
+    "espera": Parametros(0.5, 0.45, 0.85, 0.0, 0.42),  # siempre presente, tenue y tranquila
     "escuchando": Parametros(0.7, 1.0, 1.0, 0.012),
     "pensando": Parametros(1.0, 2.4, 1.3, 0.0),
     "hablando": Parametros(1.4, 1.5, 1.15, 0.05),
@@ -35,6 +37,7 @@ def mezclar(a: Parametros, b: Parametros, k: float) -> Parametros:
         a.velocidad + (b.velocidad - a.velocidad) * k,
         a.brillo + (b.brillo - a.brillo) * k,
         a.pulso + (b.pulso - a.pulso) * k,
+        a.presencia + (b.presencia - a.presencia) * k,
     )
 
 

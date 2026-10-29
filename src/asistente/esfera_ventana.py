@@ -47,6 +47,11 @@ from .esfera_forma import (
 FPS = 30
 SUAVIZADO = 6.0  # qué tan rápido se acercan los parámetros al estado pedido (1/s)
 APARICION = 3.5  # velocidad del fundido de entrada y salida (1/s)
+LIGERO_BAJO_PRESENCIA = 0.6  # por debajo, la esfera está en espera: menos capas y menos cuadros
+
+# (semiancho, grosor, opacidad, claridad) de cada capa de un destello, de la más ancha a la más brillante
+_DESTELLOS = ((0.62, 5.0, 0.18, 0.2), (0.46, 4.0, 0.35, 0.4), (0.30, 3.0, 0.60, 0.7), (0.14, 2.2, 1.0, 1.0))
+_DESTELLOS_LIGEROS = (_DESTELLOS[1], _DESTELLOS[3])
 
 
 def _cian(alfa: float, claridad: float = 0.0) -> NSColor:
@@ -83,23 +88,22 @@ class VistaEsfera(NSView):
         self.fase = 0.0  # se acumula: así un cambio de velocidad no da saltos
         self.reloj = 0.0
         self.opacidad = 0.0
-        self.visible = False
+        self.cuadros = 0
         self.ultimo = time.monotonic()
         return self
 
     def fijar_estado(self, nombre: str) -> None:
         self.objetivo = ESTADOS[nombre]
-        self.visible = nombre != "reposo"
-        if self.visible and self.ventana_esfera is not None and not self.ventana_esfera.isVisible():
+        if self.objetivo.presencia > 0 and self.ventana_esfera is not None and not self.ventana_esfera.isVisible():
             self.ventana_esfera.orderFrontRegardless()  # sin activar la app: el foco no se mueve
 
     def paso(self) -> None:
         ahora = time.monotonic()
         dt = min(ahora - self.ultimo, 0.25)
         self.ultimo = ahora
-        meta = 1.0 if self.visible else 0.0
+        meta = self.objetivo.presencia
         self.opacidad += max(-APARICION * dt, min(APARICION * dt, meta - self.opacidad))
-        if self.opacidad <= 0.0:
+        if self.opacidad <= 0.0 and meta == 0.0:
             if self.ventana_esfera is not None and self.ventana_esfera.isVisible():
                 self.ventana_esfera.orderOut_(None)
             return  # oculta: no se dibuja ni se gasta CPU
@@ -108,7 +112,10 @@ class VistaEsfera(NSView):
         self.reloj += dt
         if self.ventana_esfera is not None:
             self.ventana_esfera.setAlphaValue_(self.opacidad)
-        self.setNeedsDisplay_(True)
+        self.cuadros += 1
+        # En espera, con movimiento lento, bastan 10 cuadros por segundo: gasta poco aunque esté siempre encendida.
+        if self.parametros.presencia >= LIGERO_BAJO_PRESENCIA or self.cuadros % 3 == 0:
+            self.setNeedsDisplay_(True)
 
     def drawRect_(self, _rect):
         NSRectFillUsingOperation(self.bounds(), NSCompositingOperationClear)
@@ -123,25 +130,27 @@ class VistaEsfera(NSView):
         respiro = 0.85 + 0.15 * math.sin(self.reloj * 1.6)  # el resplandor late despacio
         brillo = p.brillo * respiro
 
-        principal = contorno(self.fase, p.amplitud, p.pulso)
-        segunda = contorno(self.fase, p.amplitud * 1.15, p.pulso, desfase=1.3)
+        ligero = p.presencia < LIGERO_BAJO_PRESENCIA  # en espera se dibujan menos capas
+        silueta = _ruta(contorno(self.fase, p.amplitud, p.pulso), cx, cy, radio, cerrada=True)
+        segunda = _ruta(contorno(self.fase, p.amplitud * 1.15, p.pulso, desfase=1.3), cx, cy, radio * 0.965, cerrada=True)
 
         # Interior casi transparente: solo un velo de cristal que se intensifica hacia el borde.
-        interior = _ruta(principal, cx, cy, radio, cerrada=True)
         NSGradient.alloc().initWithStartingColor_endingColor_(_cian(0.0), _cian(0.08 * brillo)).drawInBezierPath_relativeCenterPosition_(
-            interior, NSMakePoint(0, 0)
+            silueta, NSMakePoint(0, 0)
         )
 
         # Resplandor: capas anchas y tenues bajo una línea fina y clara.
-        for ancho, alfa in ((24, 0.05), (15, 0.09), (8, 0.16)):
-            _trazar(_ruta(principal, cx, cy, radio, True), ancho, _cian(alfa * brillo))
-            _trazar(_ruta(segunda, cx, cy, radio * 0.965, True), ancho * 0.6, _cian(alfa * 0.6 * brillo))
-        _trazar(_ruta(segunda, cx, cy, radio * 0.965, True), 1.1, _cian(0.60 * brillo, 0.4))
-        _trazar(_ruta(principal, cx, cy, radio, True), 1.9, _cian(0.95 * brillo, 0.55))
+        for ancho, alfa in ((15, 0.09), (8, 0.16)) if ligero else ((24, 0.05), (15, 0.09), (8, 0.16)):
+            _trazar(silueta, ancho, _cian(alfa * brillo))
+            if not ligero:
+                _trazar(segunda, ancho * 0.6, _cian(alfa * 0.6 * brillo))
+        _trazar(segunda, 1.1, _cian(0.60 * brillo, 0.4))
+        _trazar(silueta, 1.9, _cian(0.95 * brillo, 0.55))
 
         # Destellos que recorren el borde, más intensos hacia su centro.
+        capas = _DESTELLOS_LIGEROS if ligero else _DESTELLOS
         for centro in centros_de_destello(self.fase):
-            for semiancho, ancho, alfa, claridad in ((0.62, 5.0, 0.18, 0.2), (0.46, 4.0, 0.35, 0.4), (0.30, 3.0, 0.60, 0.7), (0.14, 2.2, 1.0, 1.0)):
+            for semiancho, ancho, alfa, claridad in capas:
                 tramo = arco(centro, semiancho, self.fase, p.amplitud, p.pulso)
                 _trazar(_ruta(tramo, cx, cy, radio, False), ancho, _cian(alfa * brillo, claridad))
 
