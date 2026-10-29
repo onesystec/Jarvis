@@ -46,6 +46,10 @@ Otros comandos: `hablar`, `transcribir`, `diagnosticar`, `microfono` y `voces`.
 
 Tras «Hey Járvis» y el «Dígame», órdenes directas: «abre Safari», «cierra Spotify» (pide confirmación), «sube el volumen», «pon el volumen al 40», «silencia», «qué hora es» y «adiós» para cerrar. Lo demás se consulta a Claude solo si lo apruebas.
 
+## Esfera
+
+Al activarse, una esfera translúcida y flotante aparece arriba a la derecha y cambia según el estado (escuchando, pensando, hablando); al terminar la orden se desvanece. Es una ventana de AppKit sin bordes ni fondo, que no recibe clics ni roba el foco, y corre en un proceso aparte que se cierra con el asistente. Se desactiva con `ESFERA_ACTIVA = False` en `src/asistente/config.py`. Para dibujarla se usa `pyobjc-framework-Cocoa`.
+
 ## Herramientas y permisos
 
 Cada herramienta tiene un permiso en `PERMISOS` (`src/asistente/config.py`): `libre`, `confirmar` (pide un «sí» hablado) o `desactivada`. Las órdenes se reconocen en local con patrones explícitos, nunca las decide Claude, y las aplicaciones se resuelven contra las instaladas. Antes de ejecutar se escribe un registro en `data/auditoria.jsonl` (solo legible por el usuario, fuera de git); si no se puede escribir, la acción no se ejecuta.

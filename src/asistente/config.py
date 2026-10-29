@@ -54,6 +54,12 @@ CARPETAS_APPS = (
     Path("/System/Applications/Utilities"),
     Path.home() / "Applications",
 )
+
+# Esfera flotante que indica que el asistente está activo (esquina superior derecha).
+ESFERA_ACTIVA = True
+ESFERA_LADO = 260  # puntos; la silueta ocupa ~60 % y el resto es resplandor
+ESFERA_MARGEN = 8  # separación del borde de la pantalla
+
 DATOS = RAIZ / "data"
 AUDITORIA = DATOS / "auditoria.jsonl"
 
