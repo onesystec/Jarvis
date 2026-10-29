@@ -4,7 +4,7 @@ Asistente de voz local-first para macOS, inspirado en JARVIS. Todo el audio se p
 
 ## Estado
 
-En desarrollo. Hecho: palabra de activación, transcripción local, voz de salida, micrófono que sigue al dispositivo predeterminado (AirPods o micrófono del Mac), cerebro híbrido (reglas locales y Claude con aprobación hablada) y primeras herramientas del Mac con permisos y auditoría. Pendiente: memoria cifrada, modelo local y navegador aislado.
+En desarrollo. Hecho: palabra de activación, transcripción local, voz de salida, micrófono que sigue al dispositivo predeterminado (AirPods o micrófono del Mac), cerebro híbrido (reglas locales y Claude con aprobación hablada) y primeras herramientas del Mac con permisos y auditoría, y memoria cifrada. Pendiente: más herramientas del Mac, navegador aislado y modelo local.
 
 ## Cómo funciona
 
@@ -53,6 +53,17 @@ Di «Hey Járvis»; tras un tintineo ya escucha. Después puedes seguir hablando
 - **Permiso de nube:** se pregunta una vez al empezar cada conversación («¿Puedo consultar a Claude…?»). «No uses Claude» lo revoca y «usa Claude» lo devuelve. `APROBACION_NUBE` en `config.py` admite `siempre`, `conversacion` o `nunca`. Al terminar la conversación se olvida lo hablado y el permiso.
 - **Cerrar:** «adiós», «hasta luego» o «eso es todo» terminan la conversación; «apágate» cierra el asistente.
 - **Rapidez:** Claude responde en streaming y la voz empieza por la primera frase mientras se sintetizan las siguientes.
+
+## Memoria
+
+Jarvis recuerda lo que le pidas entre sesiones. Todo queda en un solo archivo cifrado, `data/memoria.enc` (Fernet: AES más firma HMAC, con la librería `cryptography`), escrito de forma atómica y con permisos 600. La clave se crea la primera vez y vive en el Keychain de macOS (servicio `asistente-memoria`); si se pierde, la memoria no se puede recuperar. Un archivo que no se puede descifrar nunca se sobrescribe.
+
+- **Anotar:** «recuerda que mi hermana se llama Ana», «anota que…», «acuérdate de que…». También puede anotar Claude cuando se lo pides en una frase libre.
+- **Consultar:** «¿qué recuerdas de mí?».
+- **Borrar:** «olvida lo de mi hermana» y «olvida todo»; ambos piden confirmación y dicen cuántos recuerdos borrarán.
+- **Qué sale del equipo:** lo anotado solo viaja a Claude cuando hablas con él, después de tu permiso de la conversación, y el aviso lo dice («…y lo que tengo anotado sobre usted»). `MEMORIA_A_NUBE = False` en `src/asistente/config.py` lo mantiene siempre en local.
+- **Auditoría:** el registro guarda que se anotó o se borró algo y su tamaño, nunca el texto.
+- Límites: 200 recuerdos de hasta 200 caracteres.
 
 ## Esfera
 

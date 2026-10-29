@@ -6,10 +6,14 @@ import anthropic
 from . import config
 from .frases import Diferida
 from .herramientas import Herramientas, interpretar_orden, orden_desde_claude
+from .memoria import Memoria
 from .reglas import Respuesta, interpretar, pide_permitir_nube, pide_revocar_nube
 
 PREGUNTA_NUBE_SIEMPRE = "Esto necesita consultar a Claude. Solo enviaré su pregunta. ¿Lo envío?"
 PREGUNTA_NUBE_CONVERSACION = "Para conversar necesito consultar a Claude. Solo enviaré lo que hablemos ahora. ¿Le parece bien?"
+PREGUNTA_NUBE_CON_RECUERDOS = (
+    "Para conversar necesito consultar a Claude. Enviaré lo que hablemos y lo que tengo anotado sobre usted. ¿Le parece bien?"
+)
 
 
 class Cerebro:
@@ -20,10 +24,12 @@ class Cerebro:
         nube=None,
         confirmar: Callable[[str], bool] | None = None,
         herramientas: Herramientas | None = None,
+        memoria: Memoria | None = None,
     ) -> None:
         self._nube = nube
         self._confirmar = confirmar or (lambda _pregunta: False)
         self._herramientas = herramientas or Herramientas()
+        self._memoria = memoria
         self._historial: list[dict] = []
         self._permiso_nube: bool | None = None  # decisión del usuario para esta conversación
 
@@ -63,14 +69,23 @@ class Cerebro:
         if modo == "nunca":
             return None
         if modo == "siempre":
-            return None if self._confirmar(PREGUNTA_NUBE_SIEMPRE) else Respuesta("Entendido, no lo envío.")
+            return None if self._confirmar(self._pregunta(PREGUNTA_NUBE_SIEMPRE)) else Respuesta("Entendido, no lo envío.")
         if self._permiso_nube is None:
-            self._permiso_nube = self._confirmar(PREGUNTA_NUBE_CONVERSACION)
+            self._permiso_nube = self._confirmar(self._pregunta(PREGUNTA_NUBE_CONVERSACION))
             if not self._permiso_nube:
                 return Respuesta("Entendido, no usaré Claude en esta conversación.")
         if self._permiso_nube is False:
             return Respuesta("Sin Claude solo puedo resolver órdenes locales, señor. Dígame «usa Claude» si cambia de opinión.")
         return None
+
+    def _recuerdos(self) -> list[str]:
+        return self._memoria.para_nube() if self._memoria is not None and config.MEMORIA_A_NUBE else []
+
+    def _pregunta(self, base: str) -> str:
+        """El aviso de permiso dice con claridad si, además de la conversación, viajan los recuerdos."""
+        if base == PREGUNTA_NUBE_CONVERSACION and self._recuerdos():
+            return PREGUNTA_NUBE_CON_RECUERDOS
+        return base
 
     def _usar_herramienta(self, nombre: str, entrada: dict) -> str:
         orden = orden_desde_claude(nombre, entrada)
@@ -81,7 +96,7 @@ class Cerebro:
     def _conversar(self, texto: str, mensajes: list[dict]) -> Iterator[str | Diferida]:
         dichas: list[str] = []
         try:
-            for frase in self._nube.frases(mensajes, self._usar_herramienta):
+            for frase in self._nube.frases(mensajes, self._usar_herramienta, self._recuerdos()):
                 if isinstance(frase, str):
                     dichas.append(frase)
                 yield frase

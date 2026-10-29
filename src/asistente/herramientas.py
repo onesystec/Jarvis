@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import auditoria, config
+from .memoria import Memoria, MemoriaError, interpretar_memoria
 from .reglas import normalizar
 
 _ALIAS = {
@@ -97,10 +98,14 @@ def volumen(
 
 
 _EJECUTORES: dict[str, Callable] = {"abrir_app": abrir_app, "cerrar_app": cerrar_app, "volumen": volumen}
+_HERRAMIENTAS_DE_MEMORIA = ("recordar", "olvidar", "olvidar_todo", "recuerdos")
+_SIN_MEMORIA = "La memoria no está disponible, señor."
 
 
 def interpretar_orden(texto: str) -> Orden | None:
     """Reconoce órdenes directas sobre el Mac. Solo patrones explícitos, nada de adivinar."""
+    if (memoria := interpretar_memoria(texto)) is not None:
+        return Orden(*memoria)
     t = normalizar(texto)
     articulo = r"(?: la aplicacion| el programa| la app| el| la)?"
     if m := re.fullmatch(rf"(?:jarvis )?(?:abre|abrir|abra|inicia|lanza){articulo} (.+)", t):
@@ -119,13 +124,26 @@ def interpretar_orden(texto: str) -> Orden | None:
     return None
 
 
+def _texto_entre(entrada: dict, campo: str, minimo: int, maximo: int) -> str | None:
+    valor = entrada.get(campo)
+    if isinstance(valor, str) and minimo <= len(valor.strip()) <= maximo:
+        return valor.strip()
+    return None
+
+
 def orden_desde_claude(nombre: str, entrada: object) -> Orden | None:
     """Convierte una petición de herramienta de Claude en una Orden, validando todo: viene de un modelo."""
     if not isinstance(entrada, dict):
         return None
     if nombre in ("abrir_app", "cerrar_app"):
-        app = entrada.get("nombre")
-        return Orden(nombre, app.strip()) if isinstance(app, str) and 0 < len(app.strip()) <= 60 else None
+        app = _texto_entre(entrada, "nombre", 1, 60)
+        return Orden(nombre, app) if app else None
+    if nombre == "recordar":
+        hecho = _texto_entre(entrada, "texto", 3, config.MEMORIA_MAX_CARACTERES)
+        return Orden(nombre, hecho) if hecho else None
+    if nombre == "olvidar":
+        tema = _texto_entre(entrada, "tema", 2, 100)
+        return Orden(nombre, tema) if tema else None
     if nombre == "volumen":
         accion = entrada.get("accion")
         if accion in ("subir", "bajar", "silenciar"):
@@ -134,6 +152,10 @@ def orden_desde_claude(nombre: str, entrada: object) -> Orden | None:
         if accion == "fijar" and isinstance(nivel, int) and not isinstance(nivel, bool) and 0 <= nivel <= 100:
             return Orden("volumen", nivel)
     return None
+
+
+def _plural(n: int) -> str:
+    return f"{n} recuerdo" if n == 1 else f"{n} recuerdos"
 
 
 class Herramientas:
@@ -145,42 +167,107 @@ class Herramientas:
         auditar: Callable[..., None] = auditoria.registrar,
         ejecutores: dict[str, Callable] | None = None,
         buscar: Callable[[str], str | None] = buscar_app,
+        memoria: Memoria | None = None,
     ) -> None:
         self._permisos = permisos if permisos is not None else config.PERMISOS
         self._auditar = auditar
-        self._ejecutores = ejecutores if ejecutores is not None else _EJECUTORES
+        self._memoria = memoria
+        self._ejecutores = ejecutores if ejecutores is not None else {**_EJECUTORES, **self._ejecutores_de_memoria()}
         self._buscar = buscar
 
+    # --- memoria -----------------------------------------------------------------------------
+
+    def _ejecutores_de_memoria(self) -> dict[str, Callable]:
+        def recordar(texto: str) -> str:
+            if self._memoria is None:
+                return _SIN_MEMORIA
+            try:
+                return "Anotado, señor." if self._memoria.recordar(texto) else "Eso ya lo tenía anotado, señor."
+            except MemoriaError as error:
+                return str(error)
+
+        def olvidar(tema: str) -> str:
+            if self._memoria is None:
+                return _SIN_MEMORIA
+            return f"Listo, he olvidado {_plural(self._memoria.olvidar(tema))}, señor."
+
+        def olvidar_todo(_argumento: None) -> str:
+            if self._memoria is None:
+                return _SIN_MEMORIA
+            return f"Listo, he olvidado {_plural(self._memoria.olvidar_todo())}, señor."
+
+        def recuerdos(_argumento: None) -> str:
+            if self._memoria is None:
+                return _SIN_MEMORIA
+            hechos = [h.texto for h in self._memoria.hechos]
+            if not hechos:
+                return "No tengo nada anotado todavía, señor."
+            recientes = hechos[-5:]
+            resto = len(hechos) - len(recientes)
+            texto = f"Tengo anotado: {'; '.join(recientes)}."
+            return texto + (f" Y {resto} más." if resto else "")
+
+        return {"recordar": recordar, "olvidar": olvidar, "olvidar_todo": olvidar_todo, "recuerdos": recuerdos}
+
+    # --- ejecución ---------------------------------------------------------------------------
+
+    @staticmethod
+    def _para_auditoria(herramienta: str, argumento: object) -> object:
+        """Lo que se escribe en el registro: de la memoria solo el tamaño, para no dejar lo anotado en claro."""
+        if herramienta in ("recordar", "olvidar"):
+            return f"<{len(str(argumento))} caracteres>"
+        return argumento
+
+    def _preparar(self, orden: Orden) -> tuple[object, str, tuple[str, str] | None]:
+        """Resuelve el argumento real. Devuelve (argumento, pregunta de confirmación, (respuesta, decisión) si no procede)."""
+        herramienta, argumento = orden.herramienta, orden.argumento
+        if herramienta in ("abrir_app", "cerrar_app"):
+            app = self._buscar(str(argumento))
+            if app is None:
+                return argumento, "", (f"No encuentro la aplicación {argumento}, señor.", "no_encontrada")
+            if herramienta == "cerrar_app" and normalizar(app) in config.APPS_PROTEGIDAS:
+                return app, "", (f"No puedo cerrar {app}, señor.", "bloqueada")
+            return app, f"¿Confirma que cierre {app}?", None
+        if herramienta == "olvidar" and self._memoria is not None:
+            n = len(self._memoria.coincidencias(str(argumento)))
+            if n == 0:
+                return argumento, "", ("No tengo nada anotado sobre eso, señor.", "no_procede")
+            return argumento, f"¿Confirma que olvide {_plural(n)} sobre «{argumento}»?", None
+        if herramienta == "olvidar_todo" and self._memoria is not None:
+            n = len(self._memoria.hechos)
+            if n == 0:
+                return argumento, "", ("No tengo nada anotado, señor.", "no_procede")
+            return argumento, f"¿Confirma que olvide los {_plural(n)} que tengo sobre usted?", None
+        return argumento, "¿Lo hago?", None
+
     def ejecutar(self, orden: Orden, confirmar: Callable[[str], bool]) -> str:
-        nivel = self._permisos.get(orden.herramienta, "desactivada")
+        herramienta = orden.herramienta
+        nivel = self._permisos.get(herramienta, "desactivada")
         if nivel not in ("libre", "confirmar"):
-            self._auditar(herramienta=orden.herramienta, argumento=orden.argumento, decision="desactivada")
+            self._auditar(herramienta=herramienta, argumento=self._para_auditoria(herramienta, orden.argumento), decision="desactivada")
             return "Esa función está desactivada, señor."
 
-        argumento = orden.argumento
-        if orden.herramienta in ("abrir_app", "cerrar_app"):
-            argumento = self._buscar(str(orden.argumento))
-            if argumento is None:
-                self._auditar(herramienta=orden.herramienta, argumento=orden.argumento, decision="no_encontrada")
-                return f"No encuentro la aplicación {orden.argumento}, señor."
-            if orden.herramienta == "cerrar_app" and normalizar(argumento) in config.APPS_PROTEGIDAS:
-                self._auditar(herramienta=orden.herramienta, argumento=argumento, decision="bloqueada")
-                return f"No puedo cerrar {argumento}, señor."
+        argumento, pregunta, rechazo = self._preparar(orden)
+        visible = self._para_auditoria(herramienta, argumento)
+        if rechazo is not None:
+            respuesta, decision = rechazo
+            self._auditar(herramienta=herramienta, argumento=visible, decision=decision)
+            return respuesta
 
         decision = "libre"
         if nivel == "confirmar":
-            aprobada = confirmar(f"¿Confirma que cierre {argumento}?" if orden.herramienta == "cerrar_app" else "¿Lo hago?")
+            aprobada = confirmar(pregunta)
             decision = "aprobada" if aprobada else "rechazada"
             if not aprobada:
-                self._auditar(herramienta=orden.herramienta, argumento=argumento, decision=decision)
+                self._auditar(herramienta=herramienta, argumento=visible, decision=decision)
                 return "Entendido, no lo hago."
 
         # Se audita antes de actuar: si el registro falla, la acción no se ejecuta.
-        self._auditar(herramienta=orden.herramienta, argumento=argumento, decision=decision)
+        self._auditar(herramienta=herramienta, argumento=visible, decision=decision)
         try:
-            resultado = self._ejecutores[orden.herramienta](argumento)
+            resultado = self._ejecutores[herramienta](argumento)
         except (subprocess.SubprocessError, OSError):
-            self._auditar(herramienta=orden.herramienta, argumento=argumento, resultado="error")
+            self._auditar(herramienta=herramienta, argumento=visible, resultado="error")
             return "No pude completar la acción, señor."
-        self._auditar(herramienta=orden.herramienta, argumento=argumento, resultado="ok")
+        self._auditar(herramienta=herramienta, argumento=visible, resultado="ok")
         return resultado

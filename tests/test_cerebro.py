@@ -16,9 +16,11 @@ class NubeFalsa:
         self.frases_a_decir = list(frases)
         self.error = error
         self.llamadas: list[list[dict]] = []
+        self.recuerdos: list[list[str]] = []
 
-    def frases(self, mensajes, usar_herramienta):
+    def frases(self, mensajes, usar_herramienta, recuerdos=()):
         self.llamadas.append(list(mensajes))
+        self.recuerdos.append(list(recuerdos))
         if self.error:
             raise self.error
         yield from self.frases_a_decir

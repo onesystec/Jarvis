@@ -4,15 +4,26 @@ from . import config
 from .audio import Microfono, grabar_frase, rms
 from .cerebro import Cerebro
 from .esfera import Esfera
+from .herramientas import Herramientas
+from .memoria import Memoria, MemoriaError
 from .nube import ClienteClaude
 from .reglas import es_afirmativo
-from .secretos import obtener_clave
+from .secretos import clave_memoria, obtener_clave
 from .stt import transcribir
 from .tts import hablar, hablar_frases
 from .wake import PalabraActivacion
 
 INACTIVA = "espera" if config.ESFERA_SIEMPRE_VISIBLE else "reposo"  # cómo se ve la esfera entre conversaciones
 _ERRORES_DE_TURNO = (subprocess.SubprocessError, OSError, RuntimeError)
+
+
+def _abrir_memoria() -> Memoria | None:
+    """La memoria es opcional: si no se puede abrir, el asistente sigue sin ella y no toca el archivo."""
+    try:
+        return Memoria(config.MEMORIA, clave_memoria())
+    except (MemoriaError, OSError, subprocess.SubprocessError, ValueError) as error:
+        print(f"  Memoria desactivada: {error}")
+        return None
 
 
 def _crear_nube():
@@ -80,10 +91,12 @@ def _bucle(esfera: Esfera) -> None:
             mic.vaciar()
             return es_afirmativo(_escuchar(mic, esfera))
 
-        cerebro = Cerebro(nube, confirmar)
+        memoria = _abrir_memoria()
+        cerebro = Cerebro(nube, confirmar, Herramientas(memoria=memoria), memoria)
         hablar("Sistemas en línea.")
         mic.vaciar()
         print("Claude: " + ("conectado" if nube else "sin clave (solo reglas locales)"))
+        print(f"Memoria: {'activa, ' + str(len(memoria.hechos)) + ' recuerdos' if memoria else 'desactivada'}")
         print("Escuchando. Di «Hey Jarvis» y habla; seguiré escuchando entre respuestas. «Adiós» termina la conversación y «apágate» cierra el asistente.")
         frames = 0
         cambios = mic.cambios

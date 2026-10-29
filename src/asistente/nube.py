@@ -1,4 +1,4 @@
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 
 import anthropic
 
@@ -25,6 +25,24 @@ HERRAMIENTAS_CLAUDE = [
         },
     },
     {
+        "name": "recordar",
+        "description": "Anota un dato duradero que el señor pidió expresamente recordar (un nombre, una fecha, una preferencia). No lo uses por iniciativa propia.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"texto": {"type": "string", "description": "El dato, en una frase breve y en primera persona del señor"}},
+            "required": ["texto"],
+        },
+    },
+    {
+        "name": "olvidar",
+        "description": "Borra lo anotado sobre un tema cuando el señor pide olvidarlo. El sistema pide confirmación antes de borrar.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"tema": {"type": "string", "description": "Palabras clave de lo que se debe olvidar"}},
+            "required": ["tema"],
+        },
+    },
+    {
         "name": "volumen",
         "description": "Ajusta el volumen del Mac: sube o baja un paso, lo silencia o lo fija en un nivel.",
         "input_schema": {
@@ -43,18 +61,23 @@ class ClienteClaude:
     def __init__(self, clave: str) -> None:
         self._cliente = anthropic.Anthropic(api_key=clave, timeout=config.TIEMPO_MAX_CLAUDE_S, max_retries=1)
 
-    def frases(self, mensajes: list[dict], usar_herramienta: Callable[[str, dict], str]) -> Iterator[str | Diferida]:
+    def frases(
+        self, mensajes: list[dict], usar_herramienta: Callable[[str, dict], str], recuerdos: Sequence[str] = ()
+    ) -> Iterator[str | Diferida]:
         """Responde por frases, a medida que Claude las escribe.
 
         Solo viaja el texto de la conversación; nunca archivos ni datos del equipo. Si Claude pide una
         herramienta, `usar_herramienta` la ejecuta (con sus permisos) y Claude continúa con el resultado.
         """
         mensajes = list(mensajes)
+        sistema = config.INSTRUCCIONES_CLAUDE
+        if recuerdos:
+            sistema += config.PREFIJO_RECUERDOS + "\n".join(f"- {r}" for r in recuerdos)
         for _ in range(config.RONDAS_HERRAMIENTAS_MAX):
             with self._cliente.messages.stream(
                 model=config.MODELO_CLAUDE,
                 max_tokens=config.MAX_TOKENS_CLAUDE,
-                system=config.INSTRUCCIONES_CLAUDE,
+                system=sistema,
                 messages=mensajes,
                 tools=HERRAMIENTAS_CLAUDE,
             ) as flujo:
