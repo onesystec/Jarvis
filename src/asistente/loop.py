@@ -26,8 +26,8 @@ def ejecutar() -> None:
     nube = _crear_nube()
     with Microfono() as mic:
 
-        def confirmar() -> bool:
-            hablar("Esto necesita consultar a Claude. Solo enviaré su pregunta. ¿Lo envío?")
+        def confirmar(pregunta: str) -> bool:
+            hablar(pregunta)
             mic.vaciar()
             return es_afirmativo(_escuchar(mic))
 
@@ -35,7 +35,7 @@ def ejecutar() -> None:
         hablar("Sistemas en línea.")
         mic.vaciar()
         print("Claude: " + ("conectado" if nube else "sin clave (solo reglas locales)"))
-        print("Escuchando. Di «Hey Jarvis». Ctrl+C para salir.")
+        print("Escuchando. Di «Hey Jarvis» y, tras el «Dígame», una orden; «adiós» para cerrar. Ctrl+C también sale.")
         frames = 0
         cambios = mic.cambios
         while True:

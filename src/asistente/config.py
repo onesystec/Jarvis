@@ -28,9 +28,34 @@ INSTRUCCIONES_CLAUDE = (
     "Eres Jarvis, un asistente de voz personal que habla en español. "
     "Tus respuestas se leen en voz alta: máximo tres frases cortas, sin markdown, "
     "sin listas, sin emojis ni símbolos. Trata al usuario con cortesía y llámalo señor. "
-    "Todavía no puedes controlar aplicaciones, archivos ni el navegador; "
+    "Tú no ejecutas acciones: abrir o cerrar aplicaciones y ajustar el volumen lo hace el sistema "
+    "local solo con órdenes directas («abre Safari», «sube el volumen»). "
+    "Archivos, navegador y el resto todavía no están disponibles; "
     "si te lo piden, dilo con claridad en vez de fingirlo."
 )
+
+# Herramientas del Mac. Cada una tiene un permiso propio:
+#   "libre"       se ejecuta al momento
+#   "confirmar"   pide un «sí» hablado antes de ejecutarse
+#   "desactivada" (o ausente) se rechaza
+PERMISOS = {
+    "abrir_app": "libre",
+    "cerrar_app": "confirmar",
+    "volumen": "libre",
+}
+OPEN = "/usr/bin/open"
+OSASCRIPT = "/usr/bin/osascript"
+PASO_VOLUMEN = 10
+APPS_PROTEGIDAS = {"terminal", "finder", "claude"}  # cerrarlas tumbaría al asistente o al sistema
+CARPETAS_APPS = (
+    Path("/Applications"),
+    Path("/Applications/Utilities"),
+    Path("/System/Applications"),
+    Path("/System/Applications/Utilities"),
+    Path.home() / "Applications",
+)
+DATOS = RAIZ / "data"
+AUDITORIA = DATOS / "auditoria.jsonl"
 
 # Respaldo si faltan los modelos de Kokoro.
 VOZ = "Reed (Español (México))"

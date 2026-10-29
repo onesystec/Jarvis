@@ -4,7 +4,7 @@ Asistente de voz local-first para macOS, inspirado en JARVIS. Todo el audio se p
 
 ## Estado
 
-En desarrollo. Hecho: palabra de activación, transcripción local, voz de salida y micrófono que sigue al dispositivo predeterminado (AirPods o micrófono del Mac). Pendiente: cerebro híbrido (modelo local y Claude por API), herramientas del Mac con permisos y navegador aislado.
+En desarrollo. Hecho: palabra de activación, transcripción local, voz de salida, micrófono que sigue al dispositivo predeterminado (AirPods o micrófono del Mac), cerebro híbrido (reglas locales y Claude con aprobación hablada) y primeras herramientas del Mac con permisos y auditoría. Pendiente: memoria cifrada, modelo local y navegador aislado.
 
 ## Cómo funciona
 
@@ -43,6 +43,12 @@ uv run asistente
 ```
 
 Otros comandos: `hablar`, `transcribir`, `diagnosticar`, `microfono` y `voces`.
+
+Tras «Hey Járvis» y el «Dígame», órdenes directas: «abre Safari», «cierra Spotify» (pide confirmación), «sube el volumen», «pon el volumen al 40», «silencia», «qué hora es» y «adiós» para cerrar. Lo demás se consulta a Claude solo si lo apruebas.
+
+## Herramientas y permisos
+
+Cada herramienta tiene un permiso en `PERMISOS` (`src/asistente/config.py`): `libre`, `confirmar` (pide un «sí» hablado) o `desactivada`. Las órdenes se reconocen en local con patrones explícitos, nunca las decide Claude, y las aplicaciones se resuelven contra las instaladas. Antes de ejecutar se escribe un registro en `data/auditoria.jsonl` (solo legible por el usuario, fuera de git); si no se puede escribir, la acción no se ejecuta.
 
 ## Seguridad
 

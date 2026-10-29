@@ -4,15 +4,24 @@ from datetime import datetime
 import anthropic
 
 from . import config
+from .herramientas import Herramientas, interpretar_orden
 from .reglas import Respuesta, interpretar
+
+PREGUNTA_NUBE = "Esto necesita consultar a Claude. Solo enviaré su pregunta. ¿Lo envío?"
 
 
 class Cerebro:
-    """Decide si una orden se resuelve en local o se consulta a Claude (con aprobación)."""
+    """Decide si una orden se resuelve en local, con una herramienta, o se consulta a Claude (con aprobación)."""
 
-    def __init__(self, nube=None, confirmar: Callable[[], bool] | None = None) -> None:
+    def __init__(
+        self,
+        nube=None,
+        confirmar: Callable[[str], bool] | None = None,
+        herramientas: Herramientas | None = None,
+    ) -> None:
         self._nube = nube
-        self._confirmar = confirmar or (lambda: False)
+        self._confirmar = confirmar or (lambda _pregunta: False)
+        self._herramientas = herramientas or Herramientas()
         self._historial: list[dict] = []
 
     def pensar(self, texto: str, ahora: datetime | None = None) -> Respuesta:
@@ -20,9 +29,13 @@ class Cerebro:
         if local is not None:
             return local
 
+        orden = interpretar_orden(texto)
+        if orden is not None:
+            return Respuesta(self._herramientas.ejecutar(orden, self._confirmar))
+
         if self._nube is None:
             return Respuesta("No tengo configurada la conexión con Claude, señor.")
-        if config.APROBAR_ANTES_DE_NUBE and not self._confirmar():
+        if config.APROBAR_ANTES_DE_NUBE and not self._confirmar(PREGUNTA_NUBE):
             return Respuesta("Entendido, no lo envío.")
 
         mensajes = [*self._historial[-config.HISTORIAL_MAX_MENSAJES :], {"role": "user", "content": texto}]

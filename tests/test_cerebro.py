@@ -45,28 +45,28 @@ def test_afirmativo_y_negativo():
 
 def test_lo_simple_no_sale_a_la_nube():
     nube = NubeFalsa()
-    cerebro = Cerebro(nube, confirmar=lambda: True)
+    cerebro = Cerebro(nube, confirmar=lambda _: True)
     assert cerebro.pensar("qué hora es", LUNES).texto.startswith("Son las")
     assert nube.llamadas == []
 
 
 def test_sin_aprobacion_no_se_envia_nada():
     nube = NubeFalsa()
-    cerebro = Cerebro(nube, confirmar=lambda: False)
+    cerebro = Cerebro(nube, confirmar=lambda _: False)
     assert "no lo envío" in cerebro.pensar("cuéntame un chiste").texto
     assert nube.llamadas == []
 
 
 def test_con_aprobacion_se_envia_solo_la_conversacion():
     nube = NubeFalsa()
-    cerebro = Cerebro(nube, confirmar=lambda: True)
+    cerebro = Cerebro(nube, confirmar=lambda _: True)
     assert cerebro.pensar("cuéntame un chiste").texto == "Respuesta de Claude."
     assert nube.llamadas == [[{"role": "user", "content": "cuéntame un chiste"}]]
 
 
 def test_el_historial_se_acota_y_alterna_roles():
     nube = NubeFalsa()
-    cerebro = Cerebro(nube, confirmar=lambda: True)
+    cerebro = Cerebro(nube, confirmar=lambda _: True)
     for i in range(10):
         cerebro.pensar(f"pregunta {i}")
     enviados = nube.llamadas[-1]
@@ -86,5 +86,5 @@ def test_errores_de_la_api_no_tumban_al_asistente():
         (anthropic.APIConnectionError(request=peticion), "conectarme"),
         (anthropic.AuthenticationError("mala clave", response=respuesta, body=None), "no es válida"),
     ]:
-        cerebro = Cerebro(NubeFalsa(error=error), confirmar=lambda: True)
+        cerebro = Cerebro(NubeFalsa(error=error), confirmar=lambda _: True)
         assert esperado in cerebro.pensar("hola").texto
