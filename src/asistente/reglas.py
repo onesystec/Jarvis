@@ -42,6 +42,15 @@ def pide_permitir_nube(texto: str) -> bool:
     return bool(re.search(r"\b(usa|puedes usar|ya puedes usar|activa) claude\b", normalizar(texto)))
 
 
+def pide_revocar_web(texto: str) -> bool:
+    t = normalizar(texto)
+    return bool(re.search(r"\b(no busques|deja de buscar|sin buscar)\b.*\b(internet|web)\b|\bsin (internet|la web)\b", t))
+
+
+def pide_permitir_web(texto: str) -> bool:
+    return bool(re.fullmatch(r"(?:jarvis )?(?:ya )?(?:puedes|activa|vuelve a) (?:buscar )?(?:en )?(?:internet|la web)", normalizar(texto)))
+
+
 def interpretar(texto: str, ahora: datetime | None = None) -> Respuesta | None:
     """Resuelve en local lo simple. Devuelve None si no hay regla que lo cubra."""
     ahora = ahora or datetime.now()

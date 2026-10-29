@@ -7,17 +7,20 @@ from . import config
 from .frases import Diferida
 from .herramientas import Herramientas, interpretar_orden, orden_desde_claude
 from .memoria import Memoria
-from .reglas import Respuesta, interpretar, pide_permitir_nube, pide_revocar_nube
+from .reglas import (
+    Respuesta,
+    interpretar,
+    pide_permitir_nube,
+    pide_permitir_web,
+    pide_revocar_nube,
+    pide_revocar_web,
+)
 
 # Con contenido externo en la conversación, Claude solo puede mirar: nada que cambie cosas por iniciativa suya.
 _SOLO_LECTURA = frozenset({"buscar_archivos", "leer_archivo", "temporizadores", "bateria"})
 _BLOQUEO = "Bloqueado: hay contenido externo en esta conversación y, por seguridad, solo puedo mirar, no actuar."
 
-PREGUNTA_NUBE_SIEMPRE = "Esto necesita consultar a Claude. Solo enviaré su pregunta. ¿Lo envío?"
-PREGUNTA_NUBE_CONVERSACION = "Para conversar necesito consultar a Claude. Solo enviaré lo que hablemos ahora. ¿Le parece bien?"
-PREGUNTA_NUBE_CON_RECUERDOS = (
-    "Para conversar necesito consultar a Claude. Enviaré lo que hablemos y lo que tengo anotado sobre usted. ¿Le parece bien?"
-)
+
 
 
 class Cerebro:
@@ -36,13 +39,16 @@ class Cerebro:
         self._memoria = memoria
         self._historial: list[dict] = []
         self._permiso_nube: bool | None = None  # decisión del usuario para esta conversación
-        self._contaminado = False  # ya entró contenido externo (un archivo) en el contexto de Claude
+        self._contaminado = False  # ya entró contenido externo (un archivo o una página) en el contexto de Claude
+        self._web_revocada = False
+        self._externo_turno = False  # en el turno en curso se consultó la web o un archivo
 
     def nueva_conversacion(self) -> None:
         """Olvida lo hablado y el permiso: cada conversación empieza de cero."""
         self._historial.clear()
         self._permiso_nube = None
         self._contaminado = False
+        self._web_revocada = False
 
     def pensar(self, texto: str, ahora: datetime | None = None) -> Respuesta:
         local = interpretar(texto, ahora)
@@ -52,6 +58,12 @@ class Cerebro:
         if pide_revocar_nube(texto):
             self._permiso_nube = False
             return Respuesta("De acuerdo, no usaré Claude en esta conversación.")
+        if pide_revocar_web(texto):
+            self._web_revocada = True
+            return Respuesta("De acuerdo, no buscaré en internet en esta conversación.")
+        if pide_permitir_web(texto):
+            self._web_revocada = False
+            return Respuesta("De acuerdo, puedo buscar en internet.")
         if pide_permitir_nube(texto):
             self._permiso_nube = True
             return Respuesta("De acuerdo, puedo usar Claude.")
@@ -75,9 +87,9 @@ class Cerebro:
         if modo == "nunca":
             return None
         if modo == "siempre":
-            return None if self._confirmar(self._pregunta(PREGUNTA_NUBE_SIEMPRE)) else Respuesta("Entendido, no lo envío.")
+            return None if self._confirmar(self._aviso(por_conversacion=False)) else Respuesta("Entendido, no lo envío.")
         if self._permiso_nube is None:
-            self._permiso_nube = self._confirmar(self._pregunta(PREGUNTA_NUBE_CONVERSACION))
+            self._permiso_nube = self._confirmar(self._aviso(por_conversacion=True))
             if not self._permiso_nube:
                 return Respuesta("Entendido, no usaré Claude en esta conversación.")
         if self._permiso_nube is False:
@@ -87,11 +99,22 @@ class Cerebro:
     def _recuerdos(self) -> list[str]:
         return self._memoria.para_nube() if self._memoria is not None and config.MEMORIA_A_NUBE else []
 
-    def _pregunta(self, base: str) -> str:
-        """El aviso de permiso dice con claridad si, además de la conversación, viajan los recuerdos."""
-        if base == PREGUNTA_NUBE_CONVERSACION and self._recuerdos():
-            return PREGUNTA_NUBE_CON_RECUERDOS
-        return base
+    def _web_activa(self) -> bool:
+        return self._nube is not None and config.WEB_BUSQUEDA and not self._web_revocada
+
+    def _marcar_externo(self) -> None:
+        self._contaminado = True
+        self._externo_turno = True
+
+    def _aviso(self, por_conversacion: bool) -> str:
+        """Lo que se pregunta antes de usar Claude: dice con claridad qué viaja y si puede buscar en internet."""
+        enviado = "lo que hablemos" if por_conversacion else "su pregunta"
+        if self._recuerdos():
+            enviado += " y lo que tengo anotado sobre usted"
+        busca = ", que además puede buscar en internet" if self._web_activa() else ""
+        if por_conversacion:
+            return f"Para conversar necesito consultar a Claude{busca}. Enviaré {enviado}. ¿Le parece bien?"
+        return f"Esto necesita consultar a Claude{busca}. Enviaré {enviado}. ¿Lo envío?"
 
     def _usar_herramienta(self, nombre: str, entrada: dict) -> str:
         if self._contaminado and nombre not in _SOLO_LECTURA:
@@ -101,13 +124,14 @@ class Cerebro:
             return "Petición de herramienta no válida."
         resultado = self._herramientas.ejecutar(orden, self._confirmar)
         if nombre == "leer_archivo" and resultado.startswith("[Contenido de"):
-            self._contaminado = True
+            self._marcar_externo()
         return resultado
 
     def _conversar(self, texto: str, mensajes: list[dict]) -> Iterator[str | Diferida]:
         dichas: list[str] = []
+        self._externo_turno = False
         try:
-            for frase in self._nube.frases(mensajes, self._usar_herramienta, self._recuerdos()):
+            for frase in self._nube.frases(mensajes, self._usar_herramienta, self._recuerdos(), self._web_activa(), self._marcar_externo):
                 if isinstance(frase, str):
                     dichas.append(frase)
                 yield frase
@@ -124,4 +148,9 @@ class Cerebro:
         if not dichas:
             yield "Claude no devolvió ninguna respuesta."
             return
-        self._historial += [{"role": "user", "content": texto}, {"role": "assistant", "content": " ".join(dichas)}]
+        # Al historial va lo que Claude escribió (sin el aviso «un momento»), con una nota si consultó fuentes:
+        # sin ella, en el turno siguiente Claude duda de cifras que sí verificó.
+        escritas = [d for d in dichas if d != config.WEB_AVISO]
+        if self._externo_turno and escritas:
+            escritas.append(config.NOTA_FUENTE_EXTERNA)
+        self._historial += [{"role": "user", "content": texto}, {"role": "assistant", "content": " ".join(escritas) or " ".join(dichas)}]

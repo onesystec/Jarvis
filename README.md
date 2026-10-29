@@ -4,7 +4,7 @@ Asistente de voz local-first para macOS, inspirado en JARVIS. Todo el audio se p
 
 ## Estado
 
-En desarrollo. Hecho: palabra de activación, transcripción local, voz de salida, micrófono que sigue al dispositivo predeterminado (AirPods o micrófono del Mac), cerebro híbrido (reglas locales y Claude con aprobación hablada) y primeras herramientas del Mac con permisos y auditoría, y memoria cifrada. Pendiente: navegador aislado y modelo local.
+En desarrollo. Hecho: palabra de activación, transcripción local, voz de salida, micrófono que sigue al dispositivo predeterminado (AirPods o micrófono del Mac), cerebro híbrido (reglas locales y Claude con aprobación hablada) y primeras herramientas del Mac con permisos y auditoría, memoria cifrada, más herramientas del Mac y búsqueda web aislada. Pendiente: modelo local.
 
 ## Cómo funciona
 
@@ -74,6 +74,17 @@ Todas con su permiso en `PERMISOS` y su registro de auditoría.
 - **Batería:** «¿cuánta batería tengo?».
 - **Archivos (solo lectura):** «busca el archivo informe», «abre el archivo ideas». Solo ve las carpetas de `ARCHIVOS_CARPETAS` (Documentos, Descargas y Escritorio; macOS pedirá permiso de acceso la primera vez). Se ignoran los ocultos y los enlaces que apuntan fuera, y solo se abren documentos: nunca aplicaciones, scripts ni instaladores. Claude puede además leer archivos de texto, siempre tras una confirmación hablada porque su contenido le llega a él.
 - **Contenido externo = solo mirar:** cuando Claude ha leído un archivo, durante el resto de la conversación solo puede buscar o leer; no puede cambiar el volumen, anotar recuerdos ni abrir aplicaciones por su cuenta, porque el archivo podría traer instrucciones escondidas. Tu propia voz sigue mandando con normalidad.
+
+## Búsqueda web
+
+Jarvis puede consultar internet («¿cómo va el dólar?», «¿qué tiempo hará mañana?»), pero **nunca navega desde tu Mac**: la búsqueda la ejecuta Anthropic en sus servidores (herramienta `web_search` de la API de Claude) y a tu equipo solo llega el texto de la respuesta. Así no hay navegador local, ni cookies, ni sesiones iniciadas, ni acceso a tu red; el aislamiento es total por construcción.
+
+- **Permiso:** va incluido en el de la conversación, y el aviso lo dice: «…que además puede buscar en internet». «No busques en internet» lo revoca en esa conversación y «ya puedes buscar en internet» lo devuelve.
+- **Aviso mientras busca:** «Un momento, lo busco en internet», porque la búsqueda tarda unos segundos (la primera frase de la respuesta llega a los ~5 s).
+- **Contenido externo = solo mirar:** lo que traen las páginas se trata como dato, nunca como orden. Tras una búsqueda Claude no puede cambiar el volumen, anotar recuerdos ni abrir apps por su cuenta durante esa conversación (tu propia voz sigue mandando), y las respuestas basadas en la web quedan anotadas en el historial para que Claude no dude de ellas después.
+- **Coste:** unos 0,01 US$ por búsqueda más los tokens de los resultados; máximo 2 búsquedas por respuesta (`WEB_BUSQUEDAS_MAX`).
+- **Ajustes en `src/asistente/config.py`:** `WEB_BUSQUEDA = False` la desactiva; `WEB_UBICACION` fija tu ciudad para resultados locales (por ejemplo el tiempo). También sirve decirle a Jarvis «recuerda que vivo en…».
+- **Límites:** busca y lee resultados; no abre una URL concreta, no hace clic ni inicia sesión en sitios.
 
 ## Esfera
 

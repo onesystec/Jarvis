@@ -1,4 +1,5 @@
 from collections.abc import Callable, Iterator, Sequence
+from datetime import datetime
 
 import anthropic
 
@@ -120,32 +121,76 @@ HERRAMIENTAS_CLAUDE = [
 ]
 
 
+def _herramientas(web: bool) -> list[dict]:
+    herramientas = list(HERRAMIENTAS_CLAUDE)
+    if web:
+        busqueda = {"type": config.WEB_HERRAMIENTA, "name": "web_search", "max_uses": config.WEB_BUSQUEDAS_MAX}
+        if config.WEB_UBICACION:
+            busqueda["user_location"] = config.WEB_UBICACION
+        herramientas.append(busqueda)
+    return herramientas
+
+
 class ClienteClaude:
     def __init__(self, clave: str) -> None:
         self._cliente = anthropic.Anthropic(api_key=clave, timeout=config.TIEMPO_MAX_CLAUDE_S, max_retries=1)
 
     def frases(
-        self, mensajes: list[dict], usar_herramienta: Callable[[str, dict], str], recuerdos: Sequence[str] = ()
+        self,
+        mensajes: list[dict],
+        usar_herramienta: Callable[[str, dict], str],
+        recuerdos: Sequence[str] = (),
+        web: bool = False,
+        marcar_externo: Callable[[], None] = lambda: None,
     ) -> Iterator[str | Diferida]:
         """Responde por frases, a medida que Claude las escribe.
 
         Solo viaja el texto de la conversación; nunca archivos ni datos del equipo. Si Claude pide una
         herramienta, `usar_herramienta` la ejecuta (con sus permisos) y Claude continúa con el resultado.
+        Con `web`, Claude puede buscar en internet (lo hacen los servidores de Anthropic, no este equipo);
+        al llegar los resultados se llama a `marcar_externo`, antes de que pueda pedir ninguna herramienta.
         """
         mensajes = list(mensajes)
-        sistema = config.INSTRUCCIONES_CLAUDE
+        ahora = datetime.now().astimezone()
+        sistema = config.INSTRUCCIONES_CLAUDE + f"\n\nFecha y hora actuales: {ahora:%Y-%m-%d %H:%M} ({ahora.tzname()})."
         if recuerdos:
             sistema += config.PREFIJO_RECUERDOS + "\n".join(f"- {r}" for r in recuerdos)
+        avisado = False  # ya se dijo algo en este turno
+        con_texto = False  # Claude escribió al menos una respuesta
+
+        def trozos(flujo):
+            nonlocal avisado, con_texto
+            for evento in flujo:
+                if evento.type == "text":
+                    avisado = con_texto = True
+                    yield evento.text
+                elif evento.type == "content_block_start":
+                    tipo = evento.content_block.type
+                    if tipo == "server_tool_use" and not avisado:
+                        avisado = True
+                        yield config.WEB_AVISO + " "  # la búsqueda tarda unos segundos: que no sea silencio
+                    elif tipo == "web_search_tool_result":
+                        marcar_externo()
+
         for _ in range(config.RONDAS_HERRAMIENTAS_MAX):
             with self._cliente.messages.stream(
                 model=config.MODELO_CLAUDE,
                 max_tokens=config.MAX_TOKENS_CLAUDE,
                 system=sistema,
                 messages=mensajes,
-                tools=HERRAMIENTAS_CLAUDE,
+                tools=_herramientas(web),
+                output_config={"effort": config.ESFUERZO_CLAUDE},
             ) as flujo:
-                yield from dividir_en_frases(flujo.text_stream)
+                yield from dividir_en_frases(trozos(flujo))
                 final = flujo.get_final_message()
+            if any(bloque.type == "web_search_tool_result" for bloque in final.content):
+                marcar_externo()
+            if final.stop_reason in ("max_tokens", "refusal") and not con_texto:
+                yield "No pude responder a eso, señor. ¿Puede intentarlo de otra forma?"
+                return
+            if final.stop_reason == "pause_turn":  # el bucle de búsqueda del servidor se pausó: se reanuda tal cual
+                mensajes.append({"role": "assistant", "content": final.content})
+                continue
             usos = [bloque for bloque in final.content if bloque.type == "tool_use"]
             if not usos:
                 return

@@ -17,10 +17,18 @@ class NubeFalsa:
         self.error = error
         self.llamadas: list[list[dict]] = []
         self.recuerdos: list[list[str]] = []
+        self.web: list[bool] = []
+        self.marcar_externo = None
+        self.busca = False  # simula una respuesta que pasó por una búsqueda web
 
-    def frases(self, mensajes, usar_herramienta, recuerdos=()):
+    def frases(self, mensajes, usar_herramienta, recuerdos=(), web=False, marcar_externo=None):
         self.llamadas.append(list(mensajes))
         self.recuerdos.append(list(recuerdos))
+        self.web.append(web)
+        self.marcar_externo = marcar_externo
+        if self.busca:
+            marcar_externo()
+            yield "Un momento, lo busco en internet."
         if self.error:
             raise self.error
         yield from self.frases_a_decir

@@ -4,11 +4,7 @@ import pytest
 from cryptography.fernet import Fernet
 
 from asistente import config, loop
-from asistente.cerebro import (
-    PREGUNTA_NUBE_CON_RECUERDOS,
-    PREGUNTA_NUBE_CONVERSACION,
-    Cerebro,
-)
+from asistente.cerebro import Cerebro
 from asistente.herramientas import (
     Herramientas,
     Orden,
@@ -194,13 +190,13 @@ def test_los_recuerdos_viajan_a_claude_y_el_aviso_lo_dice(memoria):
     cerebro, nube, confirmar = cerebro_con(memoria)
     decir(cerebro.pensar("hola"))
     assert nube.recuerdos == [["mi hermana se llama Ana"]]
-    assert confirmar.preguntas == [PREGUNTA_NUBE_CON_RECUERDOS]
+    assert len(confirmar.preguntas) == 1 and "lo que tengo anotado sobre usted" in confirmar.preguntas[0]
 
 
 def test_sin_recuerdos_el_aviso_es_el_de_siempre(memoria):
     cerebro, nube, confirmar = cerebro_con(memoria)
     decir(cerebro.pensar("hola"))
-    assert nube.recuerdos == [[]] and confirmar.preguntas == [PREGUNTA_NUBE_CONVERSACION]
+    assert nube.recuerdos == [[]] and "anotado" not in confirmar.preguntas[0]
 
 
 def test_si_se_desactiva_el_envio_los_recuerdos_no_salen(memoria, monkeypatch):
@@ -208,7 +204,7 @@ def test_si_se_desactiva_el_envio_los_recuerdos_no_salen(memoria, monkeypatch):
     memoria.recordar("mi hermana se llama Ana")
     cerebro, nube, confirmar = cerebro_con(memoria)
     decir(cerebro.pensar("hola"))
-    assert nube.recuerdos == [[]] and confirmar.preguntas == [PREGUNTA_NUBE_CONVERSACION]
+    assert nube.recuerdos == [[]] and "anotado" not in confirmar.preguntas[0]
 
 
 def test_recordar_por_voz_no_sale_a_la_nube(memoria):
