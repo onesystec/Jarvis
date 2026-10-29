@@ -30,6 +30,7 @@ def transcribir_archivo(ruta: Path) -> str:
             config.WHISPER_CLI,
             "-m", str(config.MODELO_WHISPER),
             "-l", config.IDIOMA,
+            "--prompt", config.PROMPT_WHISPER,
             "-nt", "-np",
             "-f", str(ruta),
         ],
@@ -38,7 +39,11 @@ def transcribir_archivo(ruta: Path) -> str:
         check=True,
         timeout=60,
     )
-    return _limpiar(resultado.stdout)
+    texto = _limpiar(resultado.stdout)
+    # Sin voz, Whisper a veces devuelve la propia pista de contexto: no es lo que dijo el usuario.
+    if texto.lower().strip(" .¡!¿?") in config.PROMPT_WHISPER.lower():
+        return ""
+    return texto
 
 
 def transcribir(audio: np.ndarray) -> str:

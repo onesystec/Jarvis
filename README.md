@@ -44,7 +44,15 @@ uv run asistente
 
 Otros comandos: `hablar`, `transcribir`, `diagnosticar`, `microfono` y `voces`.
 
-Tras «Hey Járvis» y el «Dígame», órdenes directas: «abre Safari», «cierra Spotify» (pide confirmación), «sube el volumen», «pon el volumen al 40», «silencia», «qué hora es» y «adiós» para cerrar. Lo demás se consulta a Claude solo si lo apruebas.
+## Conversación
+
+Di «Hey Járvis»; tras un tintineo ya escucha. Después puedes seguir hablando sin repetir la activación: espera tu siguiente frase unos 7 segundos y, si hay silencio, la conversación termina y la esfera se desvanece.
+
+- **Órdenes directas, en local:** «abre Safari», «cierra Spotify» (pide confirmación), «sube el volumen», «pon el volumen al 40», «silencia», «qué hora es».
+- **Todo lo demás lo conversa Claude**, que además puede usar las herramientas del Mac (siempre con sus permisos y confirmaciones), de modo que entiende frases libres como «ponme el sonido un poco más bajo».
+- **Permiso de nube:** se pregunta una vez al empezar cada conversación («¿Puedo consultar a Claude…?»). «No uses Claude» lo revoca y «usa Claude» lo devuelve. `APROBACION_NUBE` en `config.py` admite `siempre`, `conversacion` o `nunca`. Al terminar la conversación se olvida lo hablado y el permiso.
+- **Cerrar:** «adiós», «hasta luego» o «eso es todo» terminan la conversación; «apágate» cierra el asistente.
+- **Rapidez:** Claude responde en streaming y la voz empieza por la primera frase mientras se sintetizan las siguientes.
 
 ## Esfera
 

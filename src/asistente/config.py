@@ -20,18 +20,26 @@ VELOCIDAD_VOZ = 1.0
 MODELO_CLAUDE = "claude-haiku-5-5"
 MAX_TOKENS_CLAUDE = 300
 TIEMPO_MAX_CLAUDE_S = 30.0
-APROBAR_ANTES_DE_NUBE = True
+APROBACION_NUBE = "conversacion"  # "siempre": pregunta cada vez; "conversacion": una vez; "nunca": sin preguntar
 HISTORIAL_MAX_MENSAJES = 8  # lo único que viaja a la nube además de la pregunta actual
+RONDAS_HERRAMIENTAS_MAX = 3  # cuántas veces puede Claude encadenar herramientas en un turno
+FRASE_MIN_CARACTERES = 20  # no se corta antes: frases demasiado cortas suenan entrecortadas
+PRIMER_CORTE_CARACTERES = 40  # la primera frase puede cortarse en una coma para empezar a hablar antes
 SERVICIO_CLAVE = "asistente-anthropic"
 SECURITY = "/usr/bin/security"
 INSTRUCCIONES_CLAUDE = (
-    "Eres Jarvis, un asistente de voz personal que habla en español. "
-    "Tus respuestas se leen en voz alta: máximo tres frases cortas, sin markdown, "
-    "sin listas, sin emojis ni símbolos. Trata al usuario con cortesía y llámalo señor. "
-    "Tú no ejecutas acciones: abrir o cerrar aplicaciones y ajustar el volumen lo hace el sistema "
-    "local solo con órdenes directas («abre Safari», «sube el volumen»). "
-    "Archivos, navegador y el resto todavía no están disponibles; "
-    "si te lo piden, dilo con claridad en vez de fingirlo."
+    "Eres Jarvis, el asistente de voz personal del señor. Conversas en español natural, "
+    "como un mayordomo ingenioso y cercano. "
+    "Tus respuestas se leen en voz alta: normalmente una o dos frases cortas, sin markdown, listas, "
+    "emojis ni símbolos. Responde primero a lo que se pregunta y, si ayuda, termina con una breve "
+    "pregunta de seguimiento. Llama al usuario señor sin repetirlo en cada frase. "
+    "Recuerdas lo hablado en esta conversación. "
+    "Lo que oyes viene de un reconocimiento de voz que a veces falla (por ejemplo «Carvis» por Jarvis): "
+    "interprétalo con sentido común y pregunta solo si de verdad es ambiguo. "
+    "Puedes abrir y cerrar aplicaciones y ajustar el volumen con tus herramientas; úsalas solo cuando "
+    "te lo pidan y cuenta después en una frase lo que ocurrió. "
+    "Archivos, navegador y el resto todavía no están disponibles: dilo con claridad en vez de fingirlo. "
+    "No inventes datos que no tengas, como el tiempo o las noticias; admite que aún no tienes acceso."
 )
 
 # Herramientas del Mac. Cada una tiene un permiso propio:
@@ -75,5 +83,9 @@ UMBRAL_ACTIVACION = 0.4  # medido: «hey jarvis» a la inglesa 0.46-0.99; conver
 ESPERA_MICROFONO_S = 1.0  # sin audio durante este tiempo = dispositivo caído; se reabre
 UMBRAL_VOZ = 500  # RMS int16 a partir del cual hay voz; ajustar según el micrófono
 ESPERA_MAX_S = 5.0  # cuánto esperar a que empiece a hablar tras la activación
-SILENCIO_FIN_S = 1.0  # silencio que da por terminada la frase
+SILENCIO_FIN_S = 0.8  # silencio que da por terminada la frase
 FRASE_MAX_S = 15.0
+CONVERSACION_ESPERA_S = 7.0  # tras una respuesta, cuánto se espera a que siga hablando sin repetir «Hey Jarvis»
+SONIDO_ACTIVACION = "/System/Library/Sounds/Tink.aiff"  # avisa que ya escucha, más rápido que decir «Dígame»
+SONIDO_DURACION_S = 0.4
+PROMPT_WHISPER = "Conversación en español con Jarvis, un asistente de voz."  # ayuda con nombres propios

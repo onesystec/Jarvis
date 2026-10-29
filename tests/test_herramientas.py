@@ -166,3 +166,37 @@ def test_auditoria_escribe_jsonl_privado(tmp_path):
     assert "ts" in lineas[0]
     assert ruta.stat().st_mode & 0o777 == 0o600
     assert ruta.parent.stat().st_mode & 0o777 == 0o700
+
+
+def test_orden_desde_claude_valida_todo():
+    from asistente.herramientas import orden_desde_claude
+
+    assert orden_desde_claude("abrir_app", {"nombre": " Safari "}) == Orden("abrir_app", "Safari")
+    assert orden_desde_claude("cerrar_app", {"nombre": "Spotify"}) == Orden("cerrar_app", "Spotify")
+    assert orden_desde_claude("volumen", {"accion": "subir"}) == Orden("volumen", "subir")
+    assert orden_desde_claude("volumen", {"accion": "fijar", "nivel": 30}) == Orden("volumen", 30)
+    for malo in (
+        ("abrir_app", {}),
+        ("abrir_app", {"nombre": ""}),
+        ("abrir_app", {"nombre": 5}),
+        ("abrir_app", {"nombre": "x" * 61}),
+        ("abrir_app", "Safari"),
+        ("volumen", {"accion": "fijar"}),
+        ("volumen", {"accion": "fijar", "nivel": 101}),
+        ("volumen", {"accion": "fijar", "nivel": True}),
+        ("volumen", {"accion": "explotar"}),
+        ("borrar_todo", {"nombre": "x"}),
+    ):
+        assert orden_desde_claude(*malo) is None, malo
+
+
+def test_las_herramientas_de_claude_respetan_los_permisos_y_la_confirmacion():
+    from asistente.cerebro import Cerebro
+
+    banco = Banco()
+    preguntas = []
+    cerebro = Cerebro(None, confirmar=lambda p: preguntas.append(p) or False, herramientas=banco.herramientas)
+    assert "no lo hago" in cerebro._usar_herramienta("cerrar_app", {"nombre": "safari"})
+    assert banco.hechas == [] and len(preguntas) == 1
+    assert cerebro._usar_herramienta("abrir_app", {"nombre": "safari"}) == "abrir_app hecho."
+    assert "no válida" in cerebro._usar_herramienta("abrir_app", {})

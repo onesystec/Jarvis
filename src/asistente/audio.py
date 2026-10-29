@@ -112,8 +112,8 @@ def rms(frame: np.ndarray) -> float:
     return float(np.sqrt(np.mean(frame.astype(np.float32) ** 2)))
 
 
-def grabar_frase(mic) -> np.ndarray | None:
-    espera_max = int(config.ESPERA_MAX_S / _S_POR_FRAME)
+def grabar_frase(mic, espera_max_s: float = config.ESPERA_MAX_S) -> np.ndarray | None:
+    espera_max = int(espera_max_s / _S_POR_FRAME)
     silencio_fin = int(config.SILENCIO_FIN_S / _S_POR_FRAME)
     frase_max = int(config.FRASE_MAX_S / _S_POR_FRAME)
 

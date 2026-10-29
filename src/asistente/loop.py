@@ -8,8 +8,10 @@ from .nube import ClienteClaude
 from .reglas import es_afirmativo
 from .secretos import obtener_clave
 from .stt import transcribir
-from .tts import hablar
+from .tts import hablar, hablar_frases
 from .wake import PalabraActivacion
+
+_ERRORES_DE_TURNO = (subprocess.SubprocessError, OSError, RuntimeError)
 
 
 def _crear_nube():
@@ -17,11 +19,47 @@ def _crear_nube():
     return ClienteClaude(clave) if clave else None
 
 
-def _escuchar(mic, esfera: Esfera) -> str:
+def _escuchar(mic, esfera: Esfera, espera_max_s: float = config.ESPERA_MAX_S) -> str:
     esfera.estado("escuchando")
-    audio = grabar_frase(mic)
+    audio = grabar_frase(mic, espera_max_s)
     esfera.estado("pensando")
     return transcribir(audio) if audio is not None else ""
+
+
+def _sonido_activacion() -> None:
+    """Tintineo breve: avisa de que ya escucha, sin esperar a sintetizar una voz."""
+    subprocess.run(
+        [config.AFPLAY, "-t", str(config.SONIDO_DURACION_S), config.SONIDO_ACTIVACION], check=False, timeout=10
+    )
+
+
+def _conversar(mic, esfera: Esfera, cerebro: Cerebro) -> bool:
+    """Atiende turnos seguidos sin pedir de nuevo «Hey Jarvis». True si hay que apagar el asistente."""
+    cerebro.nueva_conversacion()
+    esfera.estado("escuchando")
+    _sonido_activacion()
+    mic.vaciar()
+    espera = config.ESPERA_MAX_S
+    while True:
+        try:
+            texto = _escuchar(mic, esfera, espera)
+            if len(texto) < 2:
+                return False  # silencio: la conversación terminó
+            print(f"> {texto}")
+            respuesta = cerebro.pensar(texto)
+            frases = respuesta.frases if respuesta.frases is not None else [respuesta.texto]
+            dicho = hablar_frases(frases, al_decir=lambda: esfera.estado("hablando"))
+            print(f"< {' '.join(dicho)}")
+        except _ERRORES_DE_TURNO as error:
+            # Un fallo en un turno no debe tumbar al asistente.
+            print(f"  Error en el turno: {error}")
+            return False
+        if respuesta.salir:
+            return True
+        if respuesta.fin:
+            return False
+        mic.vaciar()  # lo que se oyó mientras hablaba era el propio asistente
+        espera = config.CONVERSACION_ESPERA_S
 
 
 def ejecutar() -> None:
@@ -44,7 +82,7 @@ def _bucle(esfera: Esfera) -> None:
         hablar("Sistemas en línea.")
         mic.vaciar()
         print("Claude: " + ("conectado" if nube else "sin clave (solo reglas locales)"))
-        print("Escuchando. Di «Hey Jarvis» y, tras el «Dígame», una orden; «adiós» para cerrar. Ctrl+C también sale.")
+        print("Escuchando. Di «Hey Jarvis» y habla; seguiré escuchando entre respuestas. «Adiós» termina la conversación y «apágate» cierra el asistente.")
         frames = 0
         cambios = mic.cambios
         while True:
@@ -61,23 +99,9 @@ def _bucle(esfera: Esfera) -> None:
                 continue
 
             print()
-            esfera.estado("escuchando")
-            try:
-                hablar("Dígame.")
-                mic.vaciar()
-                activacion.reiniciar()
-                texto = _escuchar(mic, esfera)
-                if texto:
-                    print(f"> {texto}")
-                    respuesta = cerebro.pensar(texto)
-                    print(f"< {respuesta.texto}")
-                    esfera.estado("hablando")
-                    hablar(respuesta.texto)
-                    if respuesta.salir:
-                        return
-            except (subprocess.SubprocessError, OSError, RuntimeError) as error:
-                # Un fallo en un turno no debe tumbar al asistente.
-                print(f"  Error en el turno: {error}")
+            apagar = _conversar(mic, esfera, cerebro)
             esfera.estado("reposo")
+            if apagar:
+                return
             mic.vaciar()
             activacion.reiniciar()

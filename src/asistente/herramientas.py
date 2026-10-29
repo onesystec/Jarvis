@@ -119,6 +119,23 @@ def interpretar_orden(texto: str) -> Orden | None:
     return None
 
 
+def orden_desde_claude(nombre: str, entrada: object) -> Orden | None:
+    """Convierte una petición de herramienta de Claude en una Orden, validando todo: viene de un modelo."""
+    if not isinstance(entrada, dict):
+        return None
+    if nombre in ("abrir_app", "cerrar_app"):
+        app = entrada.get("nombre")
+        return Orden(nombre, app.strip()) if isinstance(app, str) and 0 < len(app.strip()) <= 60 else None
+    if nombre == "volumen":
+        accion = entrada.get("accion")
+        if accion in ("subir", "bajar", "silenciar"):
+            return Orden("volumen", accion)
+        nivel = entrada.get("nivel")
+        if accion == "fijar" and isinstance(nivel, int) and not isinstance(nivel, bool) and 0 <= nivel <= 100:
+            return Orden("volumen", nivel)
+    return None
+
+
 class Herramientas:
     """Ejecuta órdenes respetando los permisos por herramienta y dejando rastro en la auditoría."""
 

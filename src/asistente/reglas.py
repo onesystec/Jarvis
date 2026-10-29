@@ -1,5 +1,6 @@
 import re
 import unicodedata
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -16,7 +17,9 @@ _NEGATIVAS = {"no", "cancela", "cancelalo", "espera", "nada", "negativo", "deten
 @dataclass
 class Respuesta:
     texto: str
-    salir: bool = False
+    salir: bool = False  # apagar el asistente
+    fin: bool = False  # terminar la conversación (vuelve a esperar «Hey Jarvis»)
+    frases: Iterable[str] | None = None  # respuesta que llega por partes y se va diciendo
 
 
 def normalizar(texto: str) -> str:
@@ -31,13 +34,25 @@ def es_afirmativo(texto: str) -> bool:
     return bool(palabras & _AFIRMATIVAS) and not (palabras & _NEGATIVAS)
 
 
+def pide_revocar_nube(texto: str) -> bool:
+    return bool(re.search(r"\b(no uses|no uses a|deja de usar|sin) claude\b", normalizar(texto)))
+
+
+def pide_permitir_nube(texto: str) -> bool:
+    return bool(re.search(r"\b(usa|puedes usar|ya puedes usar|activa) claude\b", normalizar(texto)))
+
+
 def interpretar(texto: str, ahora: datetime | None = None) -> Respuesta | None:
     """Resuelve en local lo simple. Devuelve None si no hay regla que lo cubra."""
     ahora = ahora or datetime.now()
     t = normalizar(texto)
 
-    if re.search(r"\b(adios|hasta luego|apagate|descansa|hasta pronto)\b", t):
-        return Respuesta("Hasta luego, señor.", salir=True)
+    if re.search(r"\b(apagate|apaga jarvis|desactivate|cierrate)\b", t):
+        return Respuesta("Apagando sistemas, señor.", salir=True, fin=True)
+    if re.search(r"\b(adios|hasta luego|hasta pronto|descansa|chao)\b", t) or re.fullmatch(
+        r"(eso es todo|es todo|nada mas|ya es todo)( gracias)?( jarvis)?", t
+    ):
+        return Respuesta("Hasta luego, señor.", fin=True)
     if re.search(r"\bque hora es\b|\bdime la hora\b|\bla hora\b", t):
         prefijo = "Es la" if ahora.hour % 12 == 1 else "Son las"
         hora = ahora.hour % 12 or 12
