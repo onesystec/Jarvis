@@ -11,11 +11,17 @@ def main() -> None:
     transcribir_p.add_argument("archivo", type=Path)
     sub.add_parser("diagnosticar", help="medir micrófono, activación y fin de frase")
     sub.add_parser("voces", help="escuchar las voces masculinas en español")
+    sub.add_parser("clave", help="comprobar si la clave de Claude está en el Keychain (sin mostrarla)")
     vigilar_p = sub.add_parser("microfono", help="vigilar el micrófono y el cambio de dispositivo")
     vigilar_p.add_argument("--segundos", type=float, default=60)
     args = parser.parse_args()
 
-    if args.comando == "microfono":
+    if args.comando == "clave":
+        from .secretos import obtener_clave
+
+        clave = obtener_clave()
+        print(f"Clave de Claude en el Keychain: {'sí (' + str(len(clave)) + ' caracteres)' if clave else 'no'}")
+    elif args.comando == "microfono":
         from .diagnostico import vigilar_microfono
 
         try:

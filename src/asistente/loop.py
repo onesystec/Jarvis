@@ -1,20 +1,40 @@
+import subprocess
+
 from . import config
 from .audio import Microfono, grabar_frase, rms
+from .cerebro import Cerebro
+from .nube import ClienteClaude
+from .reglas import es_afirmativo
+from .secretos import obtener_clave
 from .stt import transcribir
 from .tts import hablar
 from .wake import PalabraActivacion
 
 
-def responder(texto: str) -> str:
-    # Fase 1: solo repite lo entendido. En la Fase 2 aquí entra el cerebro.
-    return f"Escuché: {texto}"
+def _crear_nube():
+    clave = obtener_clave()
+    return ClienteClaude(clave) if clave else None
+
+
+def _escuchar(mic) -> str:
+    audio = grabar_frase(mic)
+    return transcribir(audio) if audio is not None else ""
 
 
 def ejecutar() -> None:
     activacion = PalabraActivacion()
+    nube = _crear_nube()
     with Microfono() as mic:
+
+        def confirmar() -> bool:
+            hablar("Esto necesita consultar a Claude. Solo enviaré su pregunta. ¿Lo envío?")
+            mic.vaciar()
+            return es_afirmativo(_escuchar(mic))
+
+        cerebro = Cerebro(nube, confirmar)
         hablar("Sistemas en línea.")
         mic.vaciar()
+        print("Claude: " + ("conectado" if nube else "sin clave (solo reglas locales)"))
         print("Escuchando. Di «Hey Jarvis». Ctrl+C para salir.")
         frames = 0
         cambios = mic.cambios
@@ -32,18 +52,20 @@ def ejecutar() -> None:
                 continue
 
             print()
-            hablar("Dígame.")
-            mic.vaciar()
-            activacion.reiniciar()
-
-            audio = grabar_frase(mic)
-            if audio is None:
-                continue
-
-            texto = transcribir(audio)
-            if not texto:
-                continue
-            print(f"> {texto}")
-            hablar(responder(texto))
+            try:
+                hablar("Dígame.")
+                mic.vaciar()
+                activacion.reiniciar()
+                texto = _escuchar(mic)
+                if texto:
+                    print(f"> {texto}")
+                    respuesta = cerebro.pensar(texto)
+                    print(f"< {respuesta.texto}")
+                    hablar(respuesta.texto)
+                    if respuesta.salir:
+                        return
+            except (subprocess.SubprocessError, OSError, RuntimeError) as error:
+                # Un fallo en un turno no debe tumbar al asistente.
+                print(f"  Error en el turno: {error}")
             mic.vaciar()
             activacion.reiniciar()

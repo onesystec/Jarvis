@@ -16,6 +16,22 @@ SHA256_VOCES = "bca610b8308e8d99f32e6fe4197e7ec01679264efed0cac9140fe9c29f1fbf7d
 VOZ_KOKORO = "em_alex"  # masculinas en español: em_alex, em_santa
 VELOCIDAD_VOZ = 1.0
 
+# Cerebro: reglas locales primero; Claude solo con aprobación del usuario.
+MODELO_CLAUDE = "claude-haiku-5-5"
+MAX_TOKENS_CLAUDE = 300
+TIEMPO_MAX_CLAUDE_S = 30.0
+APROBAR_ANTES_DE_NUBE = True
+HISTORIAL_MAX_MENSAJES = 8  # lo único que viaja a la nube además de la pregunta actual
+SERVICIO_CLAVE = "asistente-anthropic"
+SECURITY = "/usr/bin/security"
+INSTRUCCIONES_CLAUDE = (
+    "Eres Jarvis, un asistente de voz personal que habla en español. "
+    "Tus respuestas se leen en voz alta: máximo tres frases cortas, sin markdown, "
+    "sin listas, sin emojis ni símbolos. Trata al usuario con cortesía y llámalo señor. "
+    "Todavía no puedes controlar aplicaciones, archivos ni el navegador; "
+    "si te lo piden, dilo con claridad en vez de fingirlo."
+)
+
 # Respaldo si faltan los modelos de Kokoro.
 VOZ = "Reed (Español (México))"
 IDIOMA = "es"
