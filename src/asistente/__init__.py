@@ -1,2 +1,1 @@
-def main() -> None:
-    print("Hello from asistente!")
+"""Asistente de voz local-first."""
