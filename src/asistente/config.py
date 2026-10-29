@@ -132,6 +132,23 @@ MEMORIA_MAX_CARACTERES = 200
 MEMORIA_PROMPT_MAX_CARACTERES = 2000  # tope de lo que viaja a Claude cuando se le consulta
 MEMORIA_A_NUBE = True  # si es False, lo anotado nunca sale del equipo (Claude no lo ve)
 
+# Modelo local («modo privado»): llama.cpp sirve un GGUF por un socket Unix, solo mientras dura la conversación.
+LOCAL_ACTIVO = True
+MODELO_LOCAL = RAIZ / "models" / "qwen2.5-1.5b-instruct-q4_k_m.gguf"
+SHA256_MODELO_LOCAL = "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e"
+LLAMA_SERVER = "/opt/homebrew/bin/llama-server"
+LOCAL_CONTEXTO = 2048
+LOCAL_MAX_TOKENS = 200
+LOCAL_ESPERA_ARRANQUE_S = 60.0  # la primera carga en frío tarda más que las siguientes
+LOCAL_AVISO = "Cargando mi modelo local, un momento."
+INSTRUCCIONES_LOCAL = (
+    "Eres Jarvis, un asistente de voz personal que habla en español y que ahora funciona en privado, "
+    "dentro de este equipo, con un modelo pequeño. Responde en una o dos frases cortas, sin markdown, "
+    "listas ni emojis, y llama al usuario señor. "
+    "Si no estás seguro de un dato, de una cuenta o de algo reciente, dilo con claridad en vez de inventar: "
+    "no tienes acceso a internet, a archivos ni a aplicaciones en este modo."
+)
+
 # Respaldo si faltan los modelos de Kokoro.
 VOZ = "Reed (Español (México))"
 IDIOMA = "es"

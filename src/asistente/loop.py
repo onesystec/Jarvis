@@ -5,6 +5,7 @@ from .audio import Microfono, grabar_frase, rms
 from .cerebro import Cerebro
 from .esfera import Esfera
 from .herramientas import Herramientas
+from .local import ModeloLocal
 from .memoria import Memoria, MemoriaError
 from .nube import ClienteClaude
 from .reglas import es_afirmativo
@@ -66,6 +67,13 @@ def _avisar_temporizadores(herramientas: Herramientas, mic, esfera: Esfera, acti
 def _conversar(mic, esfera: Esfera, cerebro: Cerebro) -> bool:
     """Atiende turnos seguidos sin pedir de nuevo «Hey Jarvis». True si hay que apagar el asistente."""
     cerebro.nueva_conversacion()
+    try:
+        return _turnos(mic, esfera, cerebro)
+    finally:
+        cerebro.terminar_conversacion()  # libera el modelo local, si se usó
+
+
+def _turnos(mic, esfera: Esfera, cerebro: Cerebro) -> bool:
     esfera.estado("escuchando")
     _sonido_activacion()
     mic.vaciar()
@@ -111,11 +119,12 @@ def _bucle(esfera: Esfera) -> None:
 
         memoria = _abrir_memoria()
         herramientas = Herramientas(memoria=memoria)
-        cerebro = Cerebro(nube, confirmar, herramientas, memoria)
+        cerebro = Cerebro(nube, confirmar, herramientas, memoria, ModeloLocal())
         hablar("Sistemas en línea.")
         mic.vaciar()
         print("Claude: " + ("conectado" if nube else "sin clave (solo reglas locales)"))
         print(f"Memoria: {'activa, ' + str(len(memoria.hechos)) + ' recuerdos' if memoria else 'desactivada'}")
+        print(f"Modelo local: {'disponible (modo privado)' if cerebro._local_disponible() else 'no disponible'}")
         print("Escuchando. Di «Hey Jarvis» y habla; seguiré escuchando entre respuestas. «Adiós» termina la conversación y «apágate» cierra el asistente.")
         frames = 0
         cambios = mic.cambios

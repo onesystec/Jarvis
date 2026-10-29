@@ -1,4 +1,3 @@
-import hashlib
 import queue
 import subprocess
 import tempfile
@@ -10,17 +9,10 @@ import numpy as np
 
 from . import config
 from .frases import Diferida
+from .integridad import sha256 as _sha256
 from .stt import guardar_wav
 
 _kokoro = None
-
-
-def _sha256(ruta: Path) -> str:
-    h = hashlib.sha256()
-    with ruta.open("rb") as f:
-        while bloque := f.read(1 << 20):
-            h.update(bloque)
-    return h.hexdigest()
 
 
 def _cargar_kokoro():

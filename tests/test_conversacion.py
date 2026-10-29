@@ -27,6 +27,9 @@ class CerebroFalso:
     def nueva_conversacion(self) -> None:
         self.conversaciones += 1
 
+    def terminar_conversacion(self) -> None:
+        self.terminadas = getattr(self, "terminadas", 0) + 1
+
     def pensar(self, texto: str) -> Respuesta:
         self.oido.append(texto)
         return self._respuestas.pop(0)

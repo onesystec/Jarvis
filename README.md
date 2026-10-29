@@ -4,7 +4,7 @@ Asistente de voz local-first para macOS, inspirado en JARVIS. Todo el audio se p
 
 ## Estado
 
-En desarrollo. Hecho: palabra de activación, transcripción local, voz de salida, micrófono que sigue al dispositivo predeterminado (AirPods o micrófono del Mac), cerebro híbrido (reglas locales y Claude con aprobación hablada) y primeras herramientas del Mac con permisos y auditoría, memoria cifrada, más herramientas del Mac y búsqueda web aislada. Pendiente: modelo local.
+En desarrollo. Hecho: palabra de activación, transcripción local, voz de salida, micrófono que sigue al dispositivo predeterminado (AirPods o micrófono del Mac), cerebro híbrido (reglas locales y Claude con aprobación hablada) y primeras herramientas del Mac con permisos y auditoría, memoria cifrada, más herramientas del Mac búsqueda web aislada y un modo privado con modelo local. Todas las fases del plan están completas.
 
 ## Cómo funciona
 
@@ -22,7 +22,7 @@ La palabra de activación está entrenada con pronunciación inglesa: di «Hey J
 - Python 3.13, [uv](https://docs.astral.sh/uv/) y Homebrew
 
 ```bash
-brew install uv whisper-cpp portaudio
+brew install uv whisper-cpp portaudio llama.cpp
 uv sync
 ```
 
@@ -85,6 +85,22 @@ Jarvis puede consultar internet («¿cómo va el dólar?», «¿qué tiempo har�
 - **Coste:** unos 0,01 US$ por búsqueda más los tokens de los resultados; máximo 2 búsquedas por respuesta (`WEB_BUSQUEDAS_MAX`).
 - **Ajustes en `src/asistente/config.py`:** `WEB_BUSQUEDA = False` la desactiva; `WEB_UBICACION` fija tu ciudad para resultados locales (por ejemplo el tiempo). También sirve decirle a Jarvis «recuerda que vivo en…».
 - **Límites:** busca y lee resultados; no abre una URL concreta, no hace clic ni inicia sesión en sitios.
+
+## Modo privado (modelo local)
+
+Para conversar sin que nada salga del equipo, Jarvis puede usar un modelo pequeño que corre en tu Mac: Qwen2.5-1.5B-Instruct (cuantizado Q4_K_M, 1,12 GB, licencia Apache 2.0) con `llama.cpp`.
+
+- **Cuándo se usa:** si dices «habla en privado» o «modo privado» (se sale con «sal del modo privado»); si respondes que no a la consulta a Claude (esa misma pregunta se contesta en privado); y si no hay clave de Claude.
+- **Bajo demanda:** el servidor (`llama-server`) solo existe durante la conversación y se cierra al terminar. Un guardián (`asistente.vigilante`) lo apaga también si el asistente muere de golpe. Mientras corre ocupa ~1,3 GB de RAM, así que en un Mac de 8 GB la primera respuesta puede tardar unos segundos.
+- **Seguridad:** el servidor escucha en un socket Unix dentro de una carpeta privada (0700) con clave en un archivo 0600, no en la red; el SHA-256 del modelo se verifica antes de cargarlo. Lo hablado en privado tiene su propio historial y nunca viaja a Claude. Los recuerdos de la memoria sí se usan, porque aquí no salen del equipo.
+- **Límites, sin adornos:** es rápido (primer token en menos de medio segundo) pero poco fiable con los hechos: se equivoca en cuentas, inventa datos y cuenta mal los chistes. No tiene herramientas, ni búsqueda web, ni archivos. Úsalo para charlar y para temas privados, no para decidir con cifras.
+- **Instalación del modelo:** el archivo va en `models/` (fuera de git):
+
+```bash
+curl -L -o models/qwen2.5-1.5b-instruct-q4_k_m.gguf https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf
+```
+
+Con `LOCAL_ACTIVO = False` en `src/asistente/config.py` se desactiva. Requiere `brew install llama.cpp`.
 
 ## Esfera
 
