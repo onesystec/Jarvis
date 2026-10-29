@@ -9,6 +9,10 @@ from .herramientas import Herramientas, interpretar_orden, orden_desde_claude
 from .memoria import Memoria
 from .reglas import Respuesta, interpretar, pide_permitir_nube, pide_revocar_nube
 
+# Con contenido externo en la conversación, Claude solo puede mirar: nada que cambie cosas por iniciativa suya.
+_SOLO_LECTURA = frozenset({"buscar_archivos", "leer_archivo", "temporizadores", "bateria"})
+_BLOQUEO = "Bloqueado: hay contenido externo en esta conversación y, por seguridad, solo puedo mirar, no actuar."
+
 PREGUNTA_NUBE_SIEMPRE = "Esto necesita consultar a Claude. Solo enviaré su pregunta. ¿Lo envío?"
 PREGUNTA_NUBE_CONVERSACION = "Para conversar necesito consultar a Claude. Solo enviaré lo que hablemos ahora. ¿Le parece bien?"
 PREGUNTA_NUBE_CON_RECUERDOS = (
@@ -32,11 +36,13 @@ class Cerebro:
         self._memoria = memoria
         self._historial: list[dict] = []
         self._permiso_nube: bool | None = None  # decisión del usuario para esta conversación
+        self._contaminado = False  # ya entró contenido externo (un archivo) en el contexto de Claude
 
     def nueva_conversacion(self) -> None:
         """Olvida lo hablado y el permiso: cada conversación empieza de cero."""
         self._historial.clear()
         self._permiso_nube = None
+        self._contaminado = False
 
     def pensar(self, texto: str, ahora: datetime | None = None) -> Respuesta:
         local = interpretar(texto, ahora)
@@ -88,10 +94,15 @@ class Cerebro:
         return base
 
     def _usar_herramienta(self, nombre: str, entrada: dict) -> str:
+        if self._contaminado and nombre not in _SOLO_LECTURA:
+            return _BLOQUEO
         orden = orden_desde_claude(nombre, entrada)
         if orden is None:
             return "Petición de herramienta no válida."
-        return self._herramientas.ejecutar(orden, self._confirmar)
+        resultado = self._herramientas.ejecutar(orden, self._confirmar)
+        if nombre == "leer_archivo" and resultado.startswith("[Contenido de"):
+            self._contaminado = True
+        return resultado
 
     def _conversar(self, texto: str, mensajes: list[dict]) -> Iterator[str | Diferida]:
         dichas: list[str] = []

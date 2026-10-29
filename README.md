@@ -4,7 +4,7 @@ Asistente de voz local-first para macOS, inspirado en JARVIS. Todo el audio se p
 
 ## Estado
 
-En desarrollo. Hecho: palabra de activación, transcripción local, voz de salida, micrófono que sigue al dispositivo predeterminado (AirPods o micrófono del Mac), cerebro híbrido (reglas locales y Claude con aprobación hablada) y primeras herramientas del Mac con permisos y auditoría, y memoria cifrada. Pendiente: más herramientas del Mac, navegador aislado y modelo local.
+En desarrollo. Hecho: palabra de activación, transcripción local, voz de salida, micrófono que sigue al dispositivo predeterminado (AirPods o micrófono del Mac), cerebro híbrido (reglas locales y Claude con aprobación hablada) y primeras herramientas del Mac con permisos y auditoría, y memoria cifrada. Pendiente: navegador aislado y modelo local.
 
 ## Cómo funciona
 
@@ -64,6 +64,16 @@ Jarvis recuerda lo que le pidas entre sesiones. Todo queda en un solo archivo ci
 - **Qué sale del equipo:** lo anotado solo viaja a Claude cuando hablas con él, después de tu permiso de la conversación, y el aviso lo dice («…y lo que tengo anotado sobre usted»). `MEMORIA_A_NUBE = False` en `src/asistente/config.py` lo mantiene siempre en local.
 - **Auditoría:** el registro guarda que se anotó o se borró algo y su tamaño, nunca el texto.
 - Límites: 200 recuerdos de hasta 200 caracteres.
+
+## Más herramientas del Mac
+
+Todas con su permiso en `PERMISOS` y su registro de auditoría.
+
+- **Temporizadores y avisos:** «pon un temporizador de diez minutos», «avísame en media hora que saque la pizza», «¿cuánto falta?», «cancela el temporizador». Cuando vencen, Jarvis suena y lo dice en voz alta, aunque no estés en conversación.
+- **Música:** «pausa la música», «pon música», «siguiente canción», «¿qué suena?». Controla Spotify si está abierto y, si no, la app Música. La primera vez macOS pide permiso de Automatización.
+- **Batería:** «¿cuánta batería tengo?».
+- **Archivos (solo lectura):** «busca el archivo informe», «abre el archivo ideas». Solo ve las carpetas de `ARCHIVOS_CARPETAS` (Documentos, Descargas y Escritorio; macOS pedirá permiso de acceso la primera vez). Se ignoran los ocultos y los enlaces que apuntan fuera, y solo se abren documentos: nunca aplicaciones, scripts ni instaladores. Claude puede además leer archivos de texto, siempre tras una confirmación hablada porque su contenido le llega a él.
+- **Contenido externo = solo mirar:** cuando Claude ha leído un archivo, durante el resto de la conversación solo puede buscar o leer; no puede cambiar el volumen, anotar recuerdos ni abrir aplicaciones por su cuenta, porque el archivo podría traer instrucciones escondidas. Tu propia voz sigue mandando con normalidad.
 
 ## Esfera
 

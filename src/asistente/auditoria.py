@@ -13,7 +13,7 @@ def registrar(ruta: Path | None = None, **campos) -> None:
     """
     ruta = ruta or config.AUDITORIA
     ruta.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    linea = json.dumps({"ts": datetime.now().astimezone().isoformat(timespec="seconds"), **campos}, ensure_ascii=False)
+    linea = json.dumps({"ts": datetime.now().astimezone().isoformat(timespec="seconds"), **campos}, ensure_ascii=False, default=str)
     descriptor = os.open(ruta, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
     with os.fdopen(descriptor, "a", encoding="utf-8") as archivo:
         archivo.write(linea + "\n")

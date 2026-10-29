@@ -10,6 +10,7 @@ from .nube import ClienteClaude
 from .reglas import es_afirmativo
 from .secretos import clave_memoria, obtener_clave
 from .stt import transcribir
+from .temporizadores import describir
 from .tts import hablar, hablar_frases
 from .wake import PalabraActivacion
 
@@ -43,6 +44,23 @@ def _sonido_activacion() -> None:
     subprocess.run(
         [config.AFPLAY, "-t", str(config.SONIDO_DURACION_S), config.SONIDO_ACTIVACION], check=False, timeout=10
     )
+
+
+def _avisar_temporizadores(herramientas: Herramientas, mic, esfera: Esfera, activacion: PalabraActivacion) -> None:
+    """Habla de los temporizadores vencidos, siempre desde el hilo principal para no pisar el micrófono."""
+    vencidos = herramientas.temporizadores.vencidos()
+    if not vencidos:
+        return
+    esfera.estado("hablando")
+    for t in vencidos:
+        _sonido_activacion()
+        if t.etiqueta:
+            hablar(f"Señor, ya pasaron {describir(t.segundos)}. Me pidió avisarle: {t.etiqueta}.")
+        else:
+            hablar(f"Señor, el temporizador de {describir(t.segundos)} ha terminado.")
+    esfera.estado(INACTIVA)
+    mic.vaciar()
+    activacion.reiniciar()
 
 
 def _conversar(mic, esfera: Esfera, cerebro: Cerebro) -> bool:
@@ -92,7 +110,8 @@ def _bucle(esfera: Esfera) -> None:
             return es_afirmativo(_escuchar(mic, esfera))
 
         memoria = _abrir_memoria()
-        cerebro = Cerebro(nube, confirmar, Herramientas(memoria=memoria), memoria)
+        herramientas = Herramientas(memoria=memoria)
+        cerebro = Cerebro(nube, confirmar, herramientas, memoria)
         hablar("Sistemas en línea.")
         mic.vaciar()
         print("Claude: " + ("conectado" if nube else "sin clave (solo reglas locales)"))
@@ -102,6 +121,7 @@ def _bucle(esfera: Esfera) -> None:
         cambios = mic.cambios
         while True:
             frame = mic.leer()
+            _avisar_temporizadores(herramientas, mic, esfera, activacion)
             if mic.cambios != cambios:
                 cambios = mic.cambios
                 activacion.reiniciar()  # el audio previo era de otro micrófono
@@ -116,6 +136,7 @@ def _bucle(esfera: Esfera) -> None:
             print()
             apagar = _conversar(mic, esfera, cerebro)
             esfera.estado(INACTIVA)
+            _avisar_temporizadores(herramientas, mic, esfera, activacion)
             if apagar:
                 return
             mic.vaciar()

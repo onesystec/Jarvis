@@ -4,9 +4,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import auditoria, config
+from . import archivos, auditoria, config, sistema
 from .memoria import Memoria, MemoriaError, interpretar_memoria
 from .reglas import normalizar
+from .temporizadores import Temporizadores, describir, interpretar_temporizador
 
 _ALIAS = {
     "calendario": "Calendar",
@@ -97,7 +98,13 @@ def volumen(
     return f"Volumen al {nuevo} por ciento."
 
 
-_EJECUTORES: dict[str, Callable] = {"abrir_app": abrir_app, "cerrar_app": cerrar_app, "volumen": volumen}
+_EJECUTORES: dict[str, Callable] = {
+    "abrir_app": abrir_app,
+    "cerrar_app": cerrar_app,
+    "volumen": volumen,
+    "musica": sistema.musica,
+    "bateria": sistema.bateria,
+}
 _HERRAMIENTAS_DE_MEMORIA = ("recordar", "olvidar", "olvidar_todo", "recuerdos")
 _SIN_MEMORIA = "La memoria no está disponible, señor."
 
@@ -107,6 +114,14 @@ def interpretar_orden(texto: str) -> Orden | None:
     if (memoria := interpretar_memoria(texto)) is not None:
         return Orden(*memoria)
     t = normalizar(texto)
+    if m := re.fullmatch(r"(?:jarvis )?(?:abre|abrir|abra|muestrame) (?:el |la |un |una )?(?:archivo|documento|fichero|pdf) (?:de |llamado |que se llama )?(.+)", t):
+        return Orden("abrir_archivo", m[1])
+    if m := re.fullmatch(r"(?:jarvis )?(?:busca|buscame|encuentra|encuentrame) (?:el |la |un |una )?(?:archivo|documento|fichero|pdf)s? (?:de |llamado |que se llama )?(.+)", t):
+        return Orden("buscar_archivos", m[1])
+    if (temporizador := interpretar_temporizador(texto)) is not None:
+        return Orden(*temporizador)
+    if (de_sistema := sistema.interpretar_sistema(t)) is not None:
+        return Orden(*de_sistema)
     articulo = r"(?: la aplicacion| el programa| la app| el| la)?"
     if m := re.fullmatch(rf"(?:jarvis )?(?:abre|abrir|abra|inicia|lanza){articulo} (.+)", t):
         return Orden("abrir_app", m[1])
@@ -144,6 +159,23 @@ def orden_desde_claude(nombre: str, entrada: object) -> Orden | None:
     if nombre == "olvidar":
         tema = _texto_entre(entrada, "tema", 2, 100)
         return Orden(nombre, tema) if tema else None
+    if nombre in ("abrir_archivo", "leer_archivo"):
+        archivo = _texto_entre(entrada, "nombre", 1, 120)
+        return Orden(nombre, archivo) if archivo else None
+    if nombre == "buscar_archivos":
+        consulta = _texto_entre(entrada, "consulta", 1, 120)
+        return Orden(nombre, consulta) if consulta else None
+    if nombre == "temporizador":
+        segundos = entrada.get("segundos")
+        etiqueta = entrada.get("etiqueta", "")
+        if isinstance(segundos, int) and not isinstance(segundos, bool) and 1 <= segundos <= config.TEMPORIZADOR_MAX_S and isinstance(etiqueta, str):
+            return Orden(nombre, (segundos, etiqueta.strip()[:100]))
+        return None
+    if nombre in ("cancelar_temporizador", "temporizadores", "bateria"):
+        return Orden(nombre)
+    if nombre == "musica":
+        accion = entrada.get("accion")
+        return Orden(nombre, accion) if accion in ("reproducir", "pausar", "siguiente", "anterior", "que_suena") else None
     if nombre == "volumen":
         accion = entrada.get("accion")
         if accion in ("subir", "bajar", "silenciar"):
@@ -168,11 +200,19 @@ class Herramientas:
         ejecutores: dict[str, Callable] | None = None,
         buscar: Callable[[str], str | None] = buscar_app,
         memoria: Memoria | None = None,
+        temporizadores: Temporizadores | None = None,
+        carpetas: tuple[Path, ...] | None = None,
     ) -> None:
         self._permisos = permisos if permisos is not None else config.PERMISOS
         self._auditar = auditar
         self._memoria = memoria
-        self._ejecutores = ejecutores if ejecutores is not None else {**_EJECUTORES, **self._ejecutores_de_memoria()}
+        self.temporizadores = temporizadores if temporizadores is not None else Temporizadores()
+        self._carpetas = carpetas
+        self._ejecutores = (
+            ejecutores
+            if ejecutores is not None
+            else {**_EJECUTORES, **self._ejecutores_de_memoria(), **self._ejecutores_de_temporizadores(), **self._ejecutores_de_archivos()}
+        )
         self._buscar = buscar
 
     # --- memoria -----------------------------------------------------------------------------
@@ -209,6 +249,50 @@ class Herramientas:
 
         return {"recordar": recordar, "olvidar": olvidar, "olvidar_todo": olvidar_todo, "recuerdos": recuerdos}
 
+    # --- temporizadores y archivos -------------------------------------------------------------
+
+    def _ejecutores_de_temporizadores(self) -> dict[str, Callable]:
+        def crear(argumento: tuple[int, str]) -> str:
+            segundos, etiqueta = argumento
+            try:
+                self.temporizadores.crear(segundos, etiqueta)
+            except ValueError:
+                return "No puedo programar eso, señor."
+            if etiqueta:
+                return f"De acuerdo, le avisaré en {describir(segundos)}."
+            return f"Temporizador de {describir(segundos)} en marcha."
+
+        def cancelar(_argumento: None) -> str:
+            n = self.temporizadores.cancelar()
+            return "No hay temporizadores activos, señor." if n == 0 else f"Cancelado{'s' if n > 1 else ''}: {n} temporizador{'es' if n > 1 else ''}."
+
+        def pendientes(_argumento: None) -> str:
+            activos = self.temporizadores.pendientes()
+            if not activos:
+                return "No hay temporizadores activos, señor."
+            return "; ".join(f"faltan {describir(restante)}" + (f" para {t.etiqueta}" if t.etiqueta else "") for t, restante in activos) + "."
+
+        return {"temporizador": crear, "cancelar_temporizador": cancelar, "temporizadores": pendientes}
+
+    def _ejecutores_de_archivos(self) -> dict[str, Callable]:
+        def buscar(consulta: str) -> str:
+            hallados = archivos.buscar(consulta, carpetas=self._carpetas)
+            if not hallados:
+                return "No encontré nada así en sus carpetas autorizadas, señor."
+            return "Encontré: " + "; ".join(r.name for r in hallados) + "."
+
+        def abrir(ruta: Path) -> str:
+            _ejecutar([config.OPEN, str(ruta)])
+            return f"Abriendo {ruta.name}."
+
+        def leer(ruta: Path) -> str:
+            try:
+                return archivos.leer(ruta, self._carpetas)
+            except PermissionError:
+                return "Ese archivo no se puede leer, señor."
+
+        return {"buscar_archivos": buscar, "abrir_archivo": abrir, "leer_archivo": leer}
+
     # --- ejecución ---------------------------------------------------------------------------
 
     @staticmethod
@@ -216,6 +300,8 @@ class Herramientas:
         """Lo que se escribe en el registro: de la memoria solo el tamaño, para no dejar lo anotado en claro."""
         if herramienta in ("recordar", "olvidar"):
             return f"<{len(str(argumento))} caracteres>"
+        if isinstance(argumento, Path):
+            return argumento.name  # nunca la ruta completa
         return argumento
 
     def _preparar(self, orden: Orden) -> tuple[object, str, tuple[str, str] | None]:
@@ -228,6 +314,16 @@ class Herramientas:
             if herramienta == "cerrar_app" and normalizar(app) in config.APPS_PROTEGIDAS:
                 return app, "", (f"No puedo cerrar {app}, señor.", "bloqueada")
             return app, f"¿Confirma que cierre {app}?", None
+        if herramienta in ("abrir_archivo", "leer_archivo"):
+            extensiones = config.ARCHIVOS_EXT_ABRIR if herramienta == "abrir_archivo" else config.ARCHIVOS_EXT_LEER
+            hallados = archivos.buscar(str(argumento), extensiones, self._carpetas)
+            if not hallados:
+                return argumento, "", ("No encuentro ese archivo en sus carpetas autorizadas, señor.", "no_encontrado")
+            if len(hallados) > 1:
+                return argumento, "", (f"Encontré varios: {', '.join(r.name for r in hallados[:4])}. Dígame cuál, señor.", "ambiguo")
+            if herramienta == "leer_archivo":
+                return hallados[0], f"¿Confirma que lea «{hallados[0].name}» y envíe su contenido a Claude?", None
+            return hallados[0], "¿Lo hago?", None
         if herramienta == "olvidar" and self._memoria is not None:
             n = len(self._memoria.coincidencias(str(argumento)))
             if n == 0:
