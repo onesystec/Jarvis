@@ -1,0 +1,23 @@
+[project]
+name = "asistente"
+version = "0.1.0"
+description = "Asistente de voz local-first estilo JARVIS, con permisos por herramienta y auditoría"
+authors = [
+    { name = "maugos1813", email = "maufabagosgam@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = []
+
+[project.scripts]
+asistente = "asistente:main"
+
+[build-system]
+requires = ["uv_build>=0.13.6,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pip-audit>=2.10.1",
+    "pytest>=9.2.0",
+    "ruff>=0.17.3",
+]

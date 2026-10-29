@@ -1,0 +1,30 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Secretos, memoria y datos locales del asistente (nunca versionar)
+.env
+.env.*
+*.key
+*.pem
+secrets/
+data/
+logs/
+*.sqlite
+*.db
+
+# Modelos y audio
+models/
+*.gguf
+*.wav
+*.mp3
+
+# macOS
+.DS_Store
