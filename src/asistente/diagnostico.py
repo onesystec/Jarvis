@@ -70,6 +70,22 @@ def diagnosticar() -> None:
         print(f"Transcripción de la grabación completa: {transcribir(np.concatenate(frames))!r}")
 
 
+def vigilar_microfono(segundos: float = 60) -> None:
+    """Muestra el nivel en vivo; sirve para comprobar el cambio entre AirPods y el Mac."""
+    import time
+
+    fin = time.monotonic() + segundos
+    print(f"Vigilando {segundos:.0f} s. Cambia de micrófono cuando quieras (Ctrl+C para salir).")
+    with Microfono() as mic:
+        siguiente = 0.0
+        while time.monotonic() < fin:
+            frame = mic.leer()
+            if time.monotonic() >= siguiente:
+                print(f"\r  nivel {rms(frame):6.0f}   cambios {mic.cambios}  ", end="", flush=True)
+                siguiente = time.monotonic() + 0.4
+    print()
+
+
 def probar_voces() -> None:
     frase = "Buenas tardes, señor. Sistemas en línea y listos para ayudarle."
     for voz in _VOCES_KOKORO:

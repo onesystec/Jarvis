@@ -11,9 +11,18 @@ def main() -> None:
     transcribir_p.add_argument("archivo", type=Path)
     sub.add_parser("diagnosticar", help="medir micrófono, activación y fin de frase")
     sub.add_parser("voces", help="escuchar las voces masculinas en español")
+    vigilar_p = sub.add_parser("microfono", help="vigilar el micrófono y el cambio de dispositivo")
+    vigilar_p.add_argument("--segundos", type=float, default=60)
     args = parser.parse_args()
 
-    if args.comando == "diagnosticar":
+    if args.comando == "microfono":
+        from .diagnostico import vigilar_microfono
+
+        try:
+            vigilar_microfono(args.segundos)
+        except KeyboardInterrupt:
+            pass
+    elif args.comando == "diagnosticar":
         from .diagnostico import diagnosticar
 
         diagnosticar()

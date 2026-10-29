@@ -11,11 +11,11 @@ from . import config
 _MARCAS = re.compile(r"\[[^\]]*\]|\([^)]*\)")
 
 
-def _guardar_wav(ruta: Path, audio: np.ndarray) -> None:
+def guardar_wav(ruta: Path, audio: np.ndarray, frecuencia: int = config.FRECUENCIA) -> None:
     with wave.open(str(ruta), "wb") as w:
         w.setnchannels(1)
         w.setsampwidth(2)
-        w.setframerate(config.FRECUENCIA)
+        w.setframerate(frecuencia)
         w.writeframes(audio.astype(np.int16).tobytes())
 
 
@@ -45,5 +45,5 @@ def transcribir(audio: np.ndarray) -> str:
     # El audio vive solo en un directorio temporal privado (0700) y se borra al salir.
     with tempfile.TemporaryDirectory(prefix="asistente-") as carpeta:
         ruta = Path(carpeta) / "voz.wav"
-        _guardar_wav(ruta, audio)
+        guardar_wav(ruta, audio)
         return transcribir_archivo(ruta)

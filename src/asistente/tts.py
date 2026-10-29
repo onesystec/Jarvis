@@ -1,10 +1,12 @@
 import hashlib
 import subprocess
+import tempfile
 from pathlib import Path
 
-import sounddevice as sd
+import numpy as np
 
 from . import config
+from .stt import guardar_wav
 
 _kokoro = None
 
@@ -47,5 +49,9 @@ def hablar(texto: str, voz: str | None = None) -> None:
     muestras, frecuencia = _cargar_kokoro().create(
         texto, voice=voz or config.VOZ_KOKORO, speed=config.VELOCIDAD_VOZ, lang="es"
     )
-    sd.play(muestras, frecuencia)
-    sd.wait()
+    pcm = (np.clip(muestras, -1.0, 1.0) * 32767).astype(np.int16)
+    # afplay sigue siempre la salida predeterminada del sistema (altavoces o AirPods).
+    with tempfile.TemporaryDirectory(prefix="asistente-") as carpeta:
+        ruta = Path(carpeta) / "voz.wav"
+        guardar_wav(ruta, pcm, frecuencia)
+        subprocess.run([config.AFPLAY, str(ruta)], check=True, timeout=120)

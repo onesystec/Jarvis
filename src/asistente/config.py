@@ -6,6 +6,7 @@ MODELO_WHISPER = RAIZ / "models" / "ggml-small.bin"
 # Rutas absolutas: nunca se resuelven ejecutables a través del PATH.
 WHISPER_CLI = "/opt/homebrew/bin/whisper-cli"
 SAY = "/usr/bin/say"
+AFPLAY = "/usr/bin/afplay"
 
 # Voz principal: Kokoro (local, ONNX). Se verifica el SHA-256 al cargar.
 MODELO_KOKORO = RAIZ / "models" / "kokoro-v1.0.onnx"
@@ -24,6 +25,7 @@ FRAME = 1_280  # 80 ms, el tamaño que espera openWakeWord
 MODELO_ACTIVACION = "hey_jarvis"
 UMBRAL_ACTIVACION = 0.4  # medido: «hey jarvis» a la inglesa 0.46-0.99; conversación normal 0.00
 
+ESPERA_MICROFONO_S = 1.0  # sin audio durante este tiempo = dispositivo caído; se reabre
 UMBRAL_VOZ = 500  # RMS int16 a partir del cual hay voz; ajustar según el micrófono
 ESPERA_MAX_S = 5.0  # cuánto esperar a que empiece a hablar tras la activación
 SILENCIO_FIN_S = 1.0  # silencio que da por terminada la frase
