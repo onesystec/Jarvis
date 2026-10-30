@@ -1,3 +1,4 @@
+import difflib
 import re
 import subprocess
 from collections.abc import Callable
@@ -34,7 +35,8 @@ class Orden:
 
 def buscar_app(nombre: str, carpetas: tuple[Path, ...] | None = None) -> str | None:
     """Resuelve lo que dijo el usuario a una aplicación instalada (nombre exacto del disco)."""
-    objetivo = normalizar(_ALIAS.get(normalizar(nombre), nombre))
+    dicho = normalizar(nombre)
+    objetivo = normalizar(_ALIAS.get(dicho, nombre))
     if not objetivo:
         return None
     instaladas: dict[str, str] = {}
@@ -49,7 +51,16 @@ def buscar_app(nombre: str, carpetas: tuple[Path, ...] | None = None) -> str | N
     if objetivo in instaladas:
         return instaladas[objetivo]
     parecidas = [real for clave, real in instaladas.items() if clave.startswith(objetivo)]
-    return parecidas[0] if len(parecidas) == 1 else None
+    if len(parecidas) == 1:
+        return parecidas[0]
+    # El reconocimiento de voz se equivoca con los nombres («canculadora»): se acepta lo muy parecido.
+    # Los alias en español cuentan como nombres posibles. Para cerrar apps se pide confirmación igualmente.
+    conocidos = {**{clave: real for clave, real in instaladas.items()}}
+    for alias, ingles in _ALIAS.items():
+        if normalizar(ingles) in instaladas:
+            conocidos.setdefault(alias, instaladas[normalizar(ingles)])
+    cercanos = difflib.get_close_matches(dicho, list(conocidos), n=1, cutoff=0.8)
+    return conocidos[cercanos[0]] if cercanos else None
 
 
 def _ejecutar(argumentos: list[str]) -> str:

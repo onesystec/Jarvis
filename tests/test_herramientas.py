@@ -200,3 +200,17 @@ def test_las_herramientas_de_claude_respetan_los_permisos_y_la_confirmacion():
     assert banco.hechas == [] and len(preguntas) == 1
     assert cerebro._usar_herramienta("abrir_app", {"nombre": "safari"}) == "abrir_app hecho."
     assert "no válida" in cerebro._usar_herramienta("abrir_app", {})
+
+
+def test_buscar_app_tolera_errores_del_reconocimiento_de_voz(tmp_path):
+    for nombre in ("Calculator", "Safari", "Spotify", "Notes"):
+        (tmp_path / f"{nombre}.app").mkdir()
+    carpetas = (tmp_path,)
+    assert buscar_app("canculadora", carpetas) == "Calculator"  # lo que entendió Whisper en tu prueba
+    assert buscar_app("calculadora", carpetas) == "Calculator"
+    assert buscar_app("safarri", carpetas) == "Safari"
+    assert buscar_app("spotifai", carpetas) == "Spotify"
+    # lo que no se parece no se adivina
+    assert buscar_app("fotosintesis", carpetas) is None
+    assert buscar_app("zzz", carpetas) is None
+    assert buscar_app("mapa", carpetas) is None  # Maps no está instalado en este directorio de prueba
